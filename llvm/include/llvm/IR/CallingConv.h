@@ -86,6 +86,11 @@ namespace CallingConv {
     /// and has no return value. All register values are preserved.
     CFGuard_Check = 19,
 
+    // Functions with barebone calling convention receive arguments in
+    // explicitly named hardware registers, are incapable of returning
+    // a result and must tail-call another barebone function.
+    Barebone = 20,
+
     // Target - This is the start of the target-specific calling conventions,
     // e.g. fastcall and thiscall on X86.
     FirstTargetCC = 64,
