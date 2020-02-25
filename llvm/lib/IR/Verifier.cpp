@@ -2282,6 +2282,7 @@ void Verifier::visitFunction(const Function &F) {
     break;
   case CallingConv::AMDGPU_KERNEL:
   case CallingConv::SPIR_KERNEL:
+  case CallingConv::Barebone:
     Assert(F.getReturnType()->isVoidTy(),
            "Calling convention requires void return type", &F);
     LLVM_FALLTHROUGH;
@@ -3198,7 +3199,8 @@ void Verifier::verifyMustTailCall(CallInst &CI) {
   Function *F = CI.getParent()->getParent();
   FunctionType *CallerTy = F->getFunctionType();
   FunctionType *CalleeTy = CI.getFunctionType();
-  if (!CI.getCalledFunction() || !CI.getCalledFunction()->isIntrinsic()) {
+  if (F->getCallingConv() != CallingConv::Barebone &&
+      (!CI.getCalledFunction() || !CI.getCalledFunction()->isIntrinsic())) {
     Assert(CallerTy->getNumParams() == CalleeTy->getNumParams(),
            "cannot guarantee tail call due to mismatched parameter counts",
            &CI);
