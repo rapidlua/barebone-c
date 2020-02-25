@@ -86,6 +86,12 @@ namespace CallingConv {
     /// and has no return value. All register values are preserved.
     CFGuard_Check = 19,
 
+    // Functions with interp calling conventions receive arguments in
+    // hardware registers, aren't capable of returning a result and
+    // must tail-call another interp CC function. They are useful to
+    // generate code for instruction handlers in bytecode interpreters.
+    Interp = 20,
+
     // Target - This is the start of the target-specific calling conventions,
     // e.g. fastcall and thiscall on X86.
     FirstTargetCC = 64,
