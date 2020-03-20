@@ -729,6 +729,17 @@ def CC_X86_64_AnyReg : CallingConv<[
   CCCustom<"CC_X86_AnyReg_Error">
 ]>;
 
+def CC_X86_Barebone : CallingConv<[
+  CCIfType<[i1, i8, i16], CCPromoteToType<i32>>,
+  CCIfSubtarget<"is64Bit()", CCIfType<[i32], CCPromoteToType<i64>>>,
+
+  // Handle explicit hwreg assignment
+  CCCustom<"CC_X86_HWReg">,
+
+  // Fallback to a stack slot
+  CCAssignToStack<0, 0>
+]>;
+
 //===----------------------------------------------------------------------===//
 // X86 C Calling Convention
 //===----------------------------------------------------------------------===//
@@ -1026,6 +1037,8 @@ def CC_X86_32 : CallingConv<[
   CCIfCC<"CallingConv::HiPE", CCDelegateTo<CC_X86_32_HiPE>>,
   CCIfCC<"CallingConv::X86_RegCall", CCDelegateTo<CC_X86_32_RegCall>>,
 
+  CCIfCC<"CallingConv::Barebone", CCDelegateTo<CC_X86_Barebone>>,
+
   // Otherwise, drop to normal X86-32 CC
   CCDelegateTo<CC_X86_32_C>
 ]>;
@@ -1045,6 +1058,8 @@ def CC_X86_64 : CallingConv<[
     CCIfSubtarget<"isTargetWin64()", CCDelegateTo<CC_X86_Win64_RegCall>>>,
   CCIfCC<"CallingConv::X86_RegCall", CCDelegateTo<CC_X86_SysV64_RegCall>>,
   CCIfCC<"CallingConv::X86_INTR", CCCustom<"CC_X86_Intr">>,
+
+  CCIfCC<"CallingConv::Barebone", CCDelegateTo<CC_X86_Barebone>>,
 
   // Mingw64 and native Win64 use Win64 CC
   CCIfSubtarget<"isTargetWin64()", CCDelegateTo<CC_X86_Win64_C>>,

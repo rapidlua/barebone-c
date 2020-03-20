@@ -330,5 +330,21 @@ static bool CC_X86_Intr(unsigned &ValNo, MVT &ValVT, MVT &LocVT,
   return true;
 }
 
+bool llvm::CC_X86_HWReg(unsigned ValNo, MVT ValVT, MVT LocVT,
+                        CCValAssign::LocInfo LocInfo,
+                        ISD::ArgFlagsTy ArgFlags,
+                        CCState &State) {
+
+  if (!ArgFlags.isHWReg()) return false;
+
+  if (unsigned Reg = State.AllocateReg(ArgFlags.getHWReg())) {
+      State.addLoc(CCValAssign::getReg(ValNo, ValVT, Reg, LocVT, LocInfo));
+      return true;
+  }
+
+  llvm_unreachable("failed to allocate hwreg");
+  return false;
+}
+
 // Provides entry points of CC_X86 and RetCC_X86.
 #include "X86GenCallingConv.inc"

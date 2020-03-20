@@ -1128,6 +1128,10 @@ namespace llvm {
     getRegForInlineAsmConstraint(const TargetRegisterInfo *TRI,
                                  StringRef Constraint, MVT VT) const override;
 
+    unsigned getRegForHWReg(const TargetRegisterInfo *TRI,
+                            StringRef name,
+                            MVT VT) const override;
+
     /// Return true if the addressing mode represented
     /// by AM is legal for this target, for a load/store of the specified type.
     bool isLegalAddressingMode(const DataLayout &DL, const AddrMode &AM,
