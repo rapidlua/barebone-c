@@ -2542,6 +2542,22 @@ bool X86TargetLowering::isNoopAddrSpaceCast(unsigned SrcAS,
   return SrcAS < 256 && DestAS < 256;
 }
 
+bool llvm::CC_X86_HWReg(unsigned ValNo, MVT ValVT, MVT LocVT,
+                        CCValAssign::LocInfo LocInfo,
+                        ISD::ArgFlagsTy ArgFlags,
+                        CCState &State) {
+
+  if (!ArgFlags.isHWReg()) return false;
+
+  if (unsigned Reg = State.AllocateReg(ArgFlags.getHWReg())) {
+      State.addLoc(CCValAssign::getReg(ValNo, ValVT, Reg, LocVT, LocInfo));
+      return true;
+  }
+
+  llvm_unreachable("failed to allocate hwreg");
+  return false;
+}
+
 //===----------------------------------------------------------------------===//
 //               Return Value Calling Convention Implementation
 //===----------------------------------------------------------------------===//
@@ -3127,7 +3143,8 @@ static SDValue CreateCopyOfByValArgument(SDValue Src, SDValue Dst,
 static bool canGuaranteeTCO(CallingConv::ID CC) {
   return (CC == CallingConv::Fast || CC == CallingConv::GHC ||
           CC == CallingConv::X86_RegCall || CC == CallingConv::HiPE ||
-          CC == CallingConv::HHVM || CC == CallingConv::Tail);
+          CC == CallingConv::HHVM || CC == CallingConv::Tail ||
+          CC == CallingConv::Interp);
 }
 
 /// Return true if we might ever do TCO for calls with this calling convention.
@@ -3890,6 +3907,18 @@ X86TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
 
     if (isTailCall)
       ++NumTailCalls;
+  }
+
+  // Interpcc function has no means to return to the caller, hence only
+  // interpcc fn tail-calling another interpcc fn is allowed. To enforce
+  // this requirement, only musttail call sites are accepted.
+  // Note: if the call site is musttail, the verifier has already
+  // ensured that the caller and the callee have the same calling
+  // convention.
+  if (CallConv == CallingConv::Interp && !IsMustTail) {
+    DAG.getContext()->diagnose(
+      DiagnosticInfoInterpCC::mustTailCall(
+        DS_Error, MF.getFunction(), CLI.CS.getInstruction()));
   }
 
   assert(!(isVarArg && canGuaranteeTCO(CallConv)) &&
@@ -50063,6 +50092,26 @@ X86TargetLowering::getRegForInlineAsmConstraint(const TargetRegisterInfo *TRI,
   }
 
   return Res;
+}
+
+unsigned X86TargetLowering::getRegForHWReg(const TargetRegisterInfo *TRI,
+                                           StringRef name,
+                                           MVT VT) const {
+
+  const TargetRegisterClass *RC;
+  if (VT == MVT::i64) {
+    if (!Subtarget.is64Bit()) return 0;
+    RC = &X86::GR64_NOSPRegClass;
+  } else {
+    if (VT != MVT::Other && VT != MVT::i32 && VT != MVT::i16 &&
+        VT != MVT::i8 && VT != MVT::i1) return 0;
+    RC = Subtarget.is64Bit() ?
+         &X86::GR64_NOSPRegClass : &X86::GR32_NOREX_NOSPRegClass;
+  }
+  for (unsigned R: *RC) {
+    if (name.equals_lower(TRI->getRegAsmName(R))) return R;
+  }
+  return 0;
 }
 
 int X86TargetLowering::getScalingFactorCost(const DataLayout &DL,
