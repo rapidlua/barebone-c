@@ -3127,7 +3127,8 @@ static SDValue CreateCopyOfByValArgument(SDValue Src, SDValue Dst,
 static bool canGuaranteeTCO(CallingConv::ID CC) {
   return (CC == CallingConv::Fast || CC == CallingConv::GHC ||
           CC == CallingConv::X86_RegCall || CC == CallingConv::HiPE ||
-          CC == CallingConv::HHVM || CC == CallingConv::Tail);
+          CC == CallingConv::HHVM || CC == CallingConv::Tail ||
+          CC == CallingConv::Barebone);
 }
 
 /// Return true if we might ever do TCO for calls with this calling convention.
@@ -50063,6 +50064,33 @@ X86TargetLowering::getRegForInlineAsmConstraint(const TargetRegisterInfo *TRI,
   }
 
   return Res;
+}
+
+unsigned X86TargetLowering::getRegForHWReg(const TargetRegisterInfo *TRI,
+                                           StringRef name,
+                                           MVT VT) const {
+  enum { GR, FR, N };
+  std::array<const TargetRegisterClass *, N> RCs{};
+  if (VT == MVT::i64 && Subtarget.is64Bit()) {
+    RCs[GR] = &X86::GR64_NOSPRegClass;
+  }
+  if (VT == MVT::Other || VT == MVT::i32 || VT == MVT::i16 ||
+      VT == MVT::i8 || VT == MVT::i1) {
+    RCs[GR] = Subtarget.is64Bit()
+              ? &X86::GR64_NOSPRegClass
+              : &X86::GR32_NOREX_NOSPRegClass;
+  }
+  if (VT == MVT::Other || VT == MVT::f64 || VT == MVT::f32) {
+    if (Subtarget.hasSSE1())
+      RCs[FR] = Subtarget.is64Bit()
+                ? &X86::FR64XRegClass : &X86::FR64RegClass;
+  }
+  for (auto const *RC: RCs) {
+    if (RC)
+      for (unsigned R: *RC)
+        if (name.equals_lower(TRI->getRegAsmName(R))) return R;
+  }
+  return 0;
 }
 
 int X86TargetLowering::getScalingFactorCost(const DataLayout &DL,

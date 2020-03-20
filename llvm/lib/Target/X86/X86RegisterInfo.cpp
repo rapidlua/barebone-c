@@ -296,6 +296,8 @@ X86RegisterInfo::getCalleeSavedRegs(const MachineFunction *MF) const {
     if (HasAVX)
       return CSR_64_AllRegs_AVX_SaveList;
     return CSR_64_AllRegs_SaveList;
+  case CallingConv::Barebone:
+      return CSR_NoRegs_SaveList;
   case CallingConv::PreserveMost:
     return CSR_64_RT_MostRegs_SaveList;
   case CallingConv::PreserveAll:
@@ -592,6 +594,14 @@ BitVector X86RegisterInfo::getReservedRegs(const MachineFunction &MF) const {
   if (!Is64Bit || !MF.getSubtarget<X86Subtarget>().hasAVX512()) {
     for (unsigned n = 16; n != 32; ++n) {
       for (MCRegAliasIterator AI(X86::XMM0 + n, this, true); AI.isValid(); ++AI)
+        Reserved.set(*AI);
+    }
+  }
+
+  // Apply no-clobber-hwreg
+  if (MF.getFunction().getCallingConv() == CallingConv::Barebone) {
+    for (auto R : MF.getNoClobberHWReg()) {
+      for (MCRegAliasIterator AI(R, this, true); AI.isValid(); ++AI)
         Reserved.set(*AI);
     }
   }
