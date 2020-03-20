@@ -879,6 +879,7 @@ bool X86FrameLowering::has128ByteRedZone(const MachineFunction& MF) const {
          "MF used frame lowering for wrong subtarget");
   const Function &Fn = MF.getFunction();
   const bool IsWin64CC = STI.isCallingConvWin64(Fn.getCallingConv());
+  if (Fn.getCallingConv() == CallingConv::Interp) return false;
   return Is64Bit && !IsWin64CC && !Fn.hasFnAttribute(Attribute::NoRedZone);
 }
 
@@ -1159,6 +1160,10 @@ void X86FrameLowering::emitPrologue(MachineFunction &MF,
     assert(!IsFunclet && "funclets without FPs not yet implemented");
     NumBytes = StackSize - X86FI->getCalleeSavedFrameSize();
   }
+
+  // Interpcc work off a preallocated stack frame
+  if (MF.getFunction().getCallingConv() == CallingConv::Interp)
+    NumBytes = 0;
 
   // Update the offset adjustment, which is mainly used by codeview to translate
   // from ESP to VFRAME relative local variable offsets.
@@ -1632,6 +1637,9 @@ void X86FrameLowering::emitEpilogue(MachineFunction &MF,
   } else {
     NumBytes = StackSize - CSSize;
   }
+  // Interpcc work off a preallocated stack frame
+  if (MF.getFunction().getCallingConv() == CallingConv::Interp)
+    NumBytes = 0;
   uint64_t SEHStackAllocAmt = NumBytes;
 
   if (HasFP) {
@@ -1787,6 +1795,12 @@ int X86FrameLowering::getFrameIndexReference(const MachineFunction &MF, int FI,
   // do not have a standard return address. Fixed objects in the current frame,
   // such as SSE register spills, should not get this treatment.
   if (MF.getFunction().getCallingConv() == CallingConv::X86_INTR &&
+      Offset >= 0) {
+    Offset += getOffsetOfLocalArea();
+  }
+
+  // Interpcc, like x86 interrupt, doesn't have a return address.
+  if (MF.getFunction().getCallingConv() == CallingConv::Interp &&
       Offset >= 0) {
     Offset += getOffsetOfLocalArea();
   }

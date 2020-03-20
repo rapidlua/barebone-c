@@ -302,6 +302,8 @@ X86RegisterInfo::getCalleeSavedRegs(const MachineFunction *MF) const {
     if (HasAVX)
       return CSR_64_AllRegs_AVX_SaveList;
     return CSR_64_AllRegs_SaveList;
+  case CallingConv::Interp:
+      return CSR_NoRegs_SaveList;
   case CallingConv::PreserveMost:
     return CSR_64_RT_MostRegs_SaveList;
   case CallingConv::PreserveAll:
@@ -599,6 +601,15 @@ BitVector X86RegisterInfo::getReservedRegs(const MachineFunction &MF) const {
     for (unsigned n = 16; n != 32; ++n) {
       for (MCRegAliasIterator AI(X86::XMM0 + n, this, true); AI.isValid(); ++AI)
         Reserved.set(*AI);
+    }
+  }
+
+  // Apply no-clobber-hwreg
+  if (MF.getFunction().getCallingConv() == CallingConv::Interp) {
+    for (auto R : MF.getNoClobberHWReg()) {
+      Register BasePtr = getX86SubSuperRegister(R, 64);
+      for (const MCPhysReg &SubReg : subregs_inclusive(BasePtr))
+        Reserved.set(SubReg);
     }
   }
 
