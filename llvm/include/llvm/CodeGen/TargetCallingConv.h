@@ -54,6 +54,8 @@ namespace ISD {
 
     unsigned PointerAddrSpace; ///< Address space of pointer argument
 
+    unsigned HWReg;
+
   public:
     ArgFlagsTy()
         : IsZExt(0), IsSExt(0), IsInReg(0), IsSRet(0), IsByVal(0), IsNest(0),
@@ -62,8 +64,8 @@ namespace ISD {
           IsHva(0), IsHvaStart(0), IsSecArgPass(0), ByValAlign(0), OrigAlign(0),
           IsInConsecutiveRegsLast(0), IsInConsecutiveRegs(0),
           IsCopyElisionCandidate(0), IsPointer(0), ByValSize(0),
-          PointerAddrSpace(0) {
-      static_assert(sizeof(*this) == 3 * sizeof(unsigned), "flags are too big");
+          PointerAddrSpace(0), HWReg(0) {
+      static_assert(sizeof(*this) == 4 * sizeof(unsigned), "flags are too big");
     }
 
     bool isZExt() const { return IsZExt; }
@@ -159,6 +161,14 @@ namespace ISD {
 
     unsigned getByValSize() const { return ByValSize; }
     void setByValSize(unsigned S) { ByValSize = S; }
+
+    bool isHWReg() const { return HWReg; }
+    void setHWReg(unsigned Reg) {
+      HWReg = Reg;
+    }
+    unsigned getHWReg() {
+      return HWReg;
+    }
 
     unsigned getPointerAddrSpace() const { return PointerAddrSpace; }
     void setPointerAddrSpace(unsigned AS) { PointerAddrSpace = AS; }
