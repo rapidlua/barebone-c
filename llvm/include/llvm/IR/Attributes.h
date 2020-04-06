@@ -656,6 +656,12 @@ public:
     return getDereferenceableOrNullBytes(ArgNo + FirstArgIndex);
   }
 
+  // Get the symbolic name of the target-specific register (or empty
+  // string if unknown) for passing an arg.
+  StringRef getParamHWReg(unsigned ArgNo) const {
+    return getParamAttr(ArgNo, "hwreg").getValueAsString();
+  }
+
   /// Get the allocsize argument numbers (or pair(0, 0) if unknown).
   std::pair<unsigned, Optional<unsigned>>
   getAllocSizeArgs(unsigned Index) const;

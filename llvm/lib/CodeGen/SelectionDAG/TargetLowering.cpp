@@ -122,6 +122,7 @@ void TargetLoweringBase::ArgListEntry::setAttributes(const CallBase *Call,
   PreallocatedType = nullptr;
   if (IsPreallocated)
     PreallocatedType = Call->getParamPreallocatedType(ArgIdx);
+  HWReg = Call->getParamHWReg(ArgIdx);
 }
 
 /// Generate a libcall taking the given operands as arguments and returning a

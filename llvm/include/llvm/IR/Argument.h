@@ -62,6 +62,10 @@ public:
   /// number of bytes known to be dereferenceable. Otherwise, zero is returned.
   uint64_t getDereferenceableOrNullBytes() const;
 
+  // If this argument has hwreg *target-dependent" attribute, return its
+  // value. Otherwize, empty StringRef is returned.
+  StringRef getHWReg() const;
+
   /// Return true if this argument has the byval attribute.
   bool hasByValAttr() const;
 

@@ -9065,6 +9065,17 @@ static AttributeList getReturnAttrs(TargetLowering::CallLoweringInfo &CLI) {
                             Attrs);
 }
 
+static bool AllocateHWReg(BitVector &RegUsed, const TargetRegisterInfo *TRI,
+                          MCRegister R) {
+  if (RegUsed.size() == 0) {
+    RegUsed.resize(TRI->getNumRegs());
+  }
+  // only whole registers allowed, hence not checking subregs
+  if (RegUsed[R]) return false;
+  RegUsed.set(R);
+  return true;
+}
+
 /// TargetLowering::LowerCallTo - This is the default LowerCallTo
 /// implementation, which just calls LowerCall.
 /// FIXME: When all targets are
@@ -9196,6 +9207,7 @@ TargetLowering::LowerCallTo(TargetLowering::CallLoweringInfo &CLI) const {
   // Handle all of the outgoing arguments.
   CLI.Outs.clear();
   CLI.OutVals.clear();
+  BitVector HWRegUsed;
   for (unsigned i = 0, e = Args.size(); i != e; ++i) {
     SmallVector<EVT, 4> ValueVTs;
     ComputeValueVTs(*this, DL, Args[i].Ty, ValueVTs);
@@ -9327,6 +9339,32 @@ TargetLowering::LowerCallTo(TargetLowering::CallLoweringInfo &CLI) const {
             (ExtendKind != ISD::ANY_EXTEND && CLI.RetSExt == Args[i].IsSExt &&
              CLI.RetZExt == Args[i].IsZExt))
           Flags.setReturned();
+      }
+
+      // In interpcc, register used for passing an argument
+      // is defined by the argument's hwreg attribute
+      if (CLI.CallConv == CallingConv::Interp) {
+        auto hwreg = Args[i].HWReg;
+        if (!hwreg.empty()) {
+          auto &MF = CLI.DAG.getMachineFunction();
+          auto *TRI = MF.getSubtarget().getRegisterInfo();
+          MCRegister reg = getRegForHWReg(TRI, hwreg, PartVT);
+          if (!reg.isValid()) {
+            CLI.DAG.getContext()->diagnose(
+              DiagnosticInfoInterpCC::hwRegInvalid(
+                DS_Error, MF.getFunction(), CLI.CB, hwreg));
+          } else if (NumParts != 1) {
+            CLI.DAG.getContext()->diagnose(
+              DiagnosticInfoInterpCC::multipartArgUnsupported(
+                DS_Error, MF.getFunction(), CLI.CB, Args[i].Ty));
+          } else if (!AllocateHWReg(HWRegUsed, TRI, reg)) {
+            CLI.DAG.getContext()->diagnose(
+              DiagnosticInfoInterpCC::hwRegAllocFailure(
+                DS_Error, MF.getFunction(), CLI.CB, hwreg));
+          } else {
+            Flags.setHWReg(reg);
+          }
+        }
       }
 
       getCopyToParts(CLI.DAG, CLI.DL, Op, &Parts[0], NumParts, PartVT, CLI.CB,
@@ -9712,6 +9750,7 @@ void SelectionDAGISel::LowerArguments(const Function &F) {
                                     ArgCopyElisionCandidates);
 
   // Set up the incoming argument description vector.
+  BitVector HWRegUsed;
   for (const Argument &Arg : F.args()) {
     unsigned ArgNo = Arg.getArgNo();
     SmallVector<EVT, 4> ValueVTs;
@@ -9832,6 +9871,33 @@ void SelectionDAGISel::LowerArguments(const Function &F) {
           *CurDAG->getContext(), F.getCallingConv(), VT);
       unsigned NumRegs = TLI->getNumRegistersForCallingConv(
           *CurDAG->getContext(), F.getCallingConv(), VT);
+
+      // In interpcc, register used for passing an argument
+      // is defined by the argument's hwreg attribute
+      if (F.getCallingConv() == CallingConv::Interp) {
+        auto hwreg = Arg.getHWReg();
+        if (!hwreg.empty()) {
+          auto &MF = DAG.getMachineFunction();
+          auto *TRI = MF.getSubtarget().getRegisterInfo();
+          MCRegister reg = TLI->getRegForHWReg(TRI, hwreg, RegisterVT);
+          if (!reg.isValid()) {
+            DAG.getContext()->diagnose(
+              DiagnosticInfoInterpCC::hwRegInvalid(
+                DS_Error, MF.getFunction(), nullptr, hwreg));
+          } else if (NumRegs != 1) {
+            DAG.getContext()->diagnose(
+              DiagnosticInfoInterpCC::multipartArgUnsupported(
+                DS_Error, MF.getFunction(), nullptr, Arg.getType()));
+          } else if (!AllocateHWReg(HWRegUsed, TRI, reg)) {
+            DAG.getContext()->diagnose(
+              DiagnosticInfoInterpCC::hwRegAllocFailure(
+                DS_Error, MF.getFunction(), nullptr, hwreg));
+          } else {
+            Flags.setHWReg(reg);
+          }
+        }
+      }
+
       for (unsigned i = 0; i != NumRegs; ++i) {
         // For scalable vectors, use the minimum size; individual targets
         // are responsible for handling scalable vector arguments and

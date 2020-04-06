@@ -1631,6 +1631,11 @@ public:
     return Ty ? Ty : getArgOperand(ArgNo)->getType()->getPointerElementType();
   }
 
+  // Extract hwreg attribute value for a call or parameter (""=unknown).
+  StringRef getParamHWReg(unsigned ArgNo) const {
+    return Attrs.getParamHWReg(ArgNo);
+  }
+
   /// Extract the number of dereferenceable bytes for a call or
   /// parameter (0=unknown).
   uint64_t getDereferenceableBytes(unsigned i) const {
