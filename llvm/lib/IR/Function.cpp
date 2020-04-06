@@ -148,6 +148,10 @@ uint64_t Argument::getDereferenceableOrNullBytes() const {
   return getParent()->getParamDereferenceableOrNullBytes(getArgNo());
 }
 
+StringRef Argument::getHWReg() const {
+  return getParent()->getAttributes().getParamHWReg(getArgNo());
+}
+
 bool Argument::hasNestAttr() const {
   if (!getType()->isPointerTy()) return false;
   return hasAttribute(Attribute::Nest);
