@@ -36,6 +36,7 @@ class DiagnosticPrinter;
 class Function;
 class Instruction;
 class InstructionCost;
+class CallBase;
 class LLVMContext;
 class Module;
 class SMDiagnostic;
@@ -78,6 +79,11 @@ enum DiagnosticKind {
   DK_MIRParser,
   DK_PGOProfile,
   DK_Unsupported,
+  DK_FirstBareboneCCDiagnostic,
+  DK_BareboneCCHWRegInvalid = DK_FirstBareboneCCDiagnostic,
+  DK_BareboneCCHWRegAllocFailure,
+  DK_BareboneCCMultipartArgUnsupported,
+  DK_LastBareboneCCDiagnostic,
   DK_FirstPluginKind // Must be last value to work with
                      // getNextAvailablePluginDiagnosticKind
 };
@@ -1013,6 +1019,57 @@ public:
   const Twine &getMessage() const { return Msg; }
 
   void print(DiagnosticPrinter &DP) const override;
+};
+
+class DiagnosticInfoBareboneCC: public DiagnosticInfoWithLocationBase {
+public:
+  // Requested hwReg is unknown or invalid in the current context.
+  static DiagnosticInfoBareboneCC hwRegInvalid(
+    enum DiagnosticSeverity Severity,
+    const Function &Fn,
+    const CallBase *CallInstr,
+    StringRef RawValue
+  );
+
+  // Failed to allocate hwReg.
+  static DiagnosticInfoBareboneCC hwRegAllocFailure(
+    enum DiagnosticSeverity Severity,
+    const Function &Fn,
+    const CallBase *CallInstr,
+    StringRef RawValue
+  );
+
+  // Argument is passed in multiple registers, incompatible with hwreg.
+  static DiagnosticInfoBareboneCC multipartArgUnsupported(
+    enum DiagnosticSeverity Severity,
+    const Function &Fn,
+    const CallBase *CallInstr,
+    Type *T
+  );
+
+  /// \see DiagnosticInfo::print.
+  void print(DiagnosticPrinter &DP) const override;
+
+  static bool classof(const DiagnosticInfo *DI) {
+    return DI->getKind() >= DK_FirstBareboneCCDiagnostic &&
+           DI->getKind() <= DK_LastBareboneCCDiagnostic;
+  }
+
+  // Refer to factory functions for the subset of attributes set for each
+  // diagnostic kind.
+  const CallBase *getCallInstr() const { return CallInstr; }
+  StringRef getRawValue() const { return RawValue; }
+  Type *getType() const { return T; }
+
+private:
+  DiagnosticInfoBareboneCC(enum DiagnosticKind Kind,
+                         enum DiagnosticSeverity Severity,
+                         const Function &Fn,
+                         const Instruction *Instr);
+
+  const CallBase *CallInstr = nullptr;
+  Type *T = nullptr;
+  StringRef RawValue;
 };
 
 } // end namespace llvm

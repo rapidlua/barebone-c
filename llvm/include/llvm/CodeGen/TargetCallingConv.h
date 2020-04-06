@@ -61,6 +61,8 @@ namespace ISD {
       assert(getNonZeroByValAlign() == A && "bitfield overflow");
     }
 
+    unsigned HWReg;
+
   public:
     ArgFlagsTy()
       : IsZExt(0), IsSExt(0), IsInReg(0), IsSRet(0), IsByVal(0), IsByRef(0),
@@ -69,8 +71,8 @@ namespace ISD {
           IsHva(0), IsHvaStart(0), IsSecArgPass(0), ByValOrByRefAlign(0),
           OrigAlign(0), IsInConsecutiveRegsLast(0), IsInConsecutiveRegs(0),
           IsCopyElisionCandidate(0), IsPointer(0), ByValOrByRefSize(0),
-          PointerAddrSpace(0) {
-      static_assert(sizeof(*this) == 3 * sizeof(unsigned), "flags are too big");
+          PointerAddrSpace(0), HWReg(0) {
+      static_assert(sizeof(*this) == 4 * sizeof(unsigned), "flags are too big");
     }
 
     bool isZExt() const { return IsZExt; }
@@ -190,6 +192,14 @@ namespace ISD {
     void setByRefSize(unsigned S) {
       assert(!isByVal() && isByRef());
       ByValOrByRefSize = S;
+    }
+
+    bool isHWReg() const { return HWReg; }
+    void setHWReg(unsigned Reg) {
+      HWReg = Reg;
+    }
+    unsigned getHWReg() {
+      return HWReg;
     }
 
     unsigned getPointerAddrSpace() const { return PointerAddrSpace; }
