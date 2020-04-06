@@ -55,6 +55,8 @@ namespace ISD {
 
     unsigned PointerAddrSpace; ///< Address space of pointer argument
 
+    unsigned HWReg;
+
     /// Set the alignment used by byref or byval parameters.
     void setAlignImpl(Align A) {
       ByValOrByRefAlign = encode(A);
@@ -69,8 +71,8 @@ namespace ISD {
           IsHva(0), IsHvaStart(0), IsSecArgPass(0), ByValOrByRefAlign(0),
           OrigAlign(0), IsInConsecutiveRegsLast(0), IsInConsecutiveRegs(0),
           IsCopyElisionCandidate(0), IsPointer(0), ByValOrByRefSize(0),
-          PointerAddrSpace(0) {
-      static_assert(sizeof(*this) == 3 * sizeof(unsigned), "flags are too big");
+          PointerAddrSpace(0), HWReg(0) {
+      static_assert(sizeof(*this) == 4 * sizeof(unsigned), "flags are too big");
     }
 
     bool isZExt() const { return IsZExt; }
@@ -170,6 +172,14 @@ namespace ISD {
     void setOrigAlign(Align A) {
       OrigAlign = encode(A);
       assert(getNonZeroOrigAlign() == A && "bitfield overflow");
+    }
+
+    bool isHWReg() const { return HWReg; }
+    void setHWReg(unsigned Reg) {
+      HWReg = Reg;
+    }
+    unsigned getHWReg() {
+      return HWReg;
     }
 
     unsigned getByValSize() const {

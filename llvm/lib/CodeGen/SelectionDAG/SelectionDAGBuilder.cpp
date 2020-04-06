@@ -9065,6 +9065,52 @@ static AttributeList getReturnAttrs(TargetLowering::CallLoweringInfo &CLI) {
                             Attrs);
 }
 
+namespace {
+  // Parses "hwreg"="r1,r2,..." attribute (barebone calling convention).
+  class HWRegAttrParser {
+    const TargetLowering *TLI;
+    SelectionDAG &DAG;
+    const CallBase *CB;
+    std::pair<StringRef, StringRef> TokState;
+    BitVector HWRegUsed;
+  public:
+    HWRegAttrParser(const TargetLowering *TLI, SelectionDAG &DAG,
+                    const CallBase *CB, AttributeList Attrs)
+    : TLI(TLI), DAG(DAG), CB(CB),
+      TokState(getToken(Attrs.getFnAttributes()
+                             .getAttribute("hwreg").getValueAsString(), ",")),
+      HWRegUsed(DAG.getMachineFunction().getSubtarget()
+                   .getRegisterInfo()->getNumRegs()) {}
+    // Get next register from hwreg attribute, validate type
+    unsigned nextHWReg(MVT PartVT, unsigned NumParts, Type *T) {
+      using Diag = DiagnosticInfoBareboneCC;
+      auto &MF = DAG.getMachineFunction();
+      auto &F = MF.getFunction();
+      auto *TRI = MF.getSubtarget().getRegisterInfo();
+      auto HWReg = TokState.first;
+      MCRegister R = TLI->getRegForHWReg(TRI, HWReg, PartVT);
+      TokState = getToken(TokState.second, ",");
+      if (!R.isValid()) {
+        DAG.getContext()->diagnose(
+          Diag::hwRegInvalid(DS_Error, F, CB, HWReg));
+        return 0;
+      }
+      if (NumParts != 1) {
+        DAG.getContext()->diagnose(
+          Diag::multipartArgUnsupported(DS_Error, F, CB, T));
+        return 0;
+      }
+      if (HWRegUsed[R]) {
+        DAG.getContext()->diagnose(
+          Diag::hwRegAllocFailure(DS_Error, F, CB, HWReg));
+        return 0;
+      }
+      HWRegUsed.set(R);
+      return R;
+    }
+  };
+}
+
 /// TargetLowering::LowerCallTo - This is the default LowerCallTo
 /// implementation, which just calls LowerCall.
 /// FIXME: When all targets are
@@ -9191,6 +9237,13 @@ TargetLowering::LowerCallTo(TargetLowering::CallLoweringInfo &CLI) const {
         CLI.Ins.push_back(MyFlags);
       }
     }
+  }
+
+  // Prepare a parser for hwreg attribute (barebone calling convention)
+  std::unique_ptr<HWRegAttrParser> HWRegAttrParser;
+  if (CLI.CallConv == CallingConv::Barebone) {
+    HWRegAttrParser.reset(new class HWRegAttrParser(this, CLI.DAG, CLI.CB,
+                                                    CLI.CB->getAttributes()));
   }
 
   // Handle all of the outgoing arguments.
@@ -9327,6 +9380,12 @@ TargetLowering::LowerCallTo(TargetLowering::CallLoweringInfo &CLI) const {
             (ExtendKind != ISD::ANY_EXTEND && CLI.RetSExt == Args[i].IsSExt &&
              CLI.RetZExt == Args[i].IsZExt))
           Flags.setReturned();
+      }
+
+      // In barebone calling convention, the register used for passing
+      // an argument is defined by hwreg attribute
+      if (CLI.CallConv == CallingConv::Barebone) {
+        Flags.setHWReg(HWRegAttrParser->nextHWReg(PartVT, NumParts, Args[i].Ty));
       }
 
       getCopyToParts(CLI.DAG, CLI.DL, Op, &Parts[0], NumParts, PartVT, CLI.CB,
@@ -9711,6 +9770,12 @@ void SelectionDAGISel::LowerArguments(const Function &F) {
   findArgumentCopyElisionCandidates(DL, FuncInfo.get(),
                                     ArgCopyElisionCandidates);
 
+  // Prepare a parser for hwreg attribute (barebone calling convention)
+  std::unique_ptr<HWRegAttrParser> HWRegAttrParser(
+    F.getCallingConv() == CallingConv::Barebone
+    ? new class HWRegAttrParser(TLI, DAG, nullptr, F.getAttributes())
+    : nullptr);
+
   // Set up the incoming argument description vector.
   for (const Argument &Arg : F.args()) {
     unsigned ArgNo = Arg.getArgNo();
@@ -9832,6 +9897,14 @@ void SelectionDAGISel::LowerArguments(const Function &F) {
           *CurDAG->getContext(), F.getCallingConv(), VT);
       unsigned NumRegs = TLI->getNumRegistersForCallingConv(
           *CurDAG->getContext(), F.getCallingConv(), VT);
+
+      // In barebone calling convention, the register used for passing
+      // an argument is defined by hwreg attribute
+      if (F.getCallingConv() == CallingConv::Barebone) {
+        Flags.setHWReg(HWRegAttrParser->nextHWReg(RegisterVT, NumRegs,
+                                                  Arg.getType()));
+      }
+
       for (unsigned i = 0; i != NumRegs; ++i) {
         // For scalable vectors, use the minimum size; individual targets
         // are responsible for handling scalable vector arguments and

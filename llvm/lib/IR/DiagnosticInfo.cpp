@@ -381,3 +381,107 @@ void DiagnosticInfoMisExpect::print(DiagnosticPrinter &DP) const {
 
 void OptimizationRemarkAnalysisFPCommute::anchor() {}
 void OptimizationRemarkAnalysisAliasing::anchor() {}
+
+DiagnosticInfoBareboneCC::DiagnosticInfoBareboneCC(
+  enum DiagnosticKind Kind,
+  enum DiagnosticSeverity Severity,
+  const Function &Fn,
+  const Instruction *Instr
+) : DiagnosticInfoWithLocationBase(Kind, Severity, Fn, Instr
+                                   ? DiagnosticLocation(Instr->getDebugLoc())
+                                   : DiagnosticLocation(Fn.getSubprogram())) {
+}
+
+DiagnosticInfoBareboneCC DiagnosticInfoBareboneCC::hwRegInvalid(
+  enum DiagnosticSeverity Severity,
+  const Function &Fn,
+  const CallBase *CallInstr,
+  StringRef RawValue
+) {
+  DiagnosticInfoBareboneCC D(DK_BareboneCCHWRegInvalid, Severity, Fn, CallInstr);
+  D.CallInstr = CallInstr;
+  D.RawValue = RawValue;
+  return D;
+}
+
+DiagnosticInfoBareboneCC DiagnosticInfoBareboneCC::hwRegAllocFailure(
+  enum DiagnosticSeverity Severity,
+  const Function &Fn,
+  const CallBase *CallInstr,
+  StringRef RawValue
+) {
+  DiagnosticInfoBareboneCC D(DK_BareboneCCHWRegAllocFailure,
+                           Severity, Fn, CallInstr);
+  D.CallInstr = CallInstr;
+  D.RawValue = RawValue;
+  return D;
+}
+
+DiagnosticInfoBareboneCC DiagnosticInfoBareboneCC::multipartArgUnsupported(
+  enum DiagnosticSeverity Severity,
+  const Function &Fn,
+  const CallBase *CallInstr,
+  Type *T
+) {
+  DiagnosticInfoBareboneCC D(DK_BareboneCCMultipartArgUnsupported,
+                           Severity, Fn, CallInstr);
+  D.CallInstr = CallInstr;
+  D.T = T;
+  return D;
+}
+
+static void PrintCallee(DiagnosticPrinter &DP, const CallBase *Instr) {
+  if (!Instr) return;
+  auto *F = Instr->getCalledFunction();
+  if (F) {
+    DP << F->getName();
+  } else {
+    std::string Str;
+    raw_string_ostream OS(Str);
+    OS << *Instr->getFunctionType();
+    OS.flush();
+    DP << Str;
+  }
+}
+
+void DiagnosticInfoBareboneCC::print(DiagnosticPrinter &DP) const {
+  if (isLocationAvailable())
+    DP << getLocationStr() << ": ";
+  DP << "in function " << getFunction().getName() << ": ";
+  switch (getKind()) {
+  case DK_BareboneCCHWRegInvalid:
+    DP << "register requested by 'hwreg' attribute is unknown "
+          "or invalid";
+    if (CallInstr) {
+      DP << " in a call to ";
+      PrintCallee(DP, CallInstr);
+    }
+    DP << ": " << RawValue;
+    break;
+  case DK_BareboneCCHWRegAllocFailure:
+    DP << "failed to allocate register requested by 'hwreg' attribute";
+    if (CallInstr) {
+      DP << " in a call to ";
+      PrintCallee(DP, CallInstr);
+    }
+    DP << ": " << RawValue;
+    break;
+  case DK_BareboneCCMultipartArgUnsupported:
+    {
+      std::string T;
+      raw_string_ostream OS(T);
+      OS << *getType();
+      OS.flush();
+      DP << "argument of type " << T
+         << " is passed in multiple registers, incompatible with 'hwreg'";
+    }
+    if (CallInstr) {
+      DP << " in a call to ";
+      PrintCallee(DP, CallInstr);
+    }
+    break;
+  default:
+    llvm_unreachable("unexpected diagnostic kind");
+    break;
+  }
+}
