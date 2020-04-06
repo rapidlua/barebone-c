@@ -193,6 +193,7 @@ public:
     bool IsCFGuardTarget : 1;
     uint16_t Alignment = 0;
     Type *ByValType = nullptr;
+    StringRef HWReg;
 
     ArgListEntry()
         : IsSExt(false), IsZExt(false), IsInReg(false), IsSRet(false),
@@ -3958,6 +3959,12 @@ public:
     if (ConstraintCode == "m")
       return InlineAsm::Constraint_m;
     return InlineAsm::Constraint_Unknown;
+  }
+
+  virtual unsigned getRegForHWReg(const TargetRegisterInfo *TRI,
+                                  StringRef name,
+                                  MVT VT = MVT::Other) const {
+    return 0;
   }
 
   /// Try to replace an X constraint, which matches anything, with another that

@@ -118,6 +118,7 @@ void TargetLoweringBase::ArgListEntry::setAttributes(const CallBase *Call,
   ByValType = nullptr;
   if (Call->paramHasAttr(ArgIdx, Attribute::ByVal))
     ByValType = Call->getParamByValType(ArgIdx);
+  HWReg = Call->getParamHWReg(ArgIdx);
 }
 
 /// Generate a libcall taking the given operands as arguments and returning a

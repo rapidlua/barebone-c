@@ -34,6 +34,7 @@ namespace llvm {
 class DiagnosticPrinter;
 class Function;
 class Instruction;
+class CallBase;
 class LLVMContext;
 class Module;
 class SMDiagnostic;
@@ -76,6 +77,11 @@ enum DiagnosticKind {
   DK_PGOProfile,
   DK_MisExpect,
   DK_Unsupported,
+  DK_FirstInterpCCDiagnostic,
+  DK_InterpCCHWRegInvalid = DK_FirstInterpCCDiagnostic,
+  DK_InterpCCHWRegAllocFailure,
+  DK_InterpCCMultipartArgUnsupported,
+  DK_LastInterpCCDiagnostic,
   DK_FirstPluginKind // Must be last value to work with
                      // getNextAvailablePluginDiagnosticKind
 };
@@ -1021,6 +1027,57 @@ public:
 private:
   /// Message to report.
   const Twine &Msg;
+};
+
+class DiagnosticInfoInterpCC: public DiagnosticInfoWithLocationBase {
+public:
+  // Requested hwReg is unknown or invalid in the current context.
+  static DiagnosticInfoInterpCC hwRegInvalid(
+    enum DiagnosticSeverity Severity,
+    const Function &Fn,
+    const CallBase *CallInstr,
+    StringRef RawValue
+  );
+
+  // Failed to allocate hwReg.
+  static DiagnosticInfoInterpCC hwRegAllocFailure(
+    enum DiagnosticSeverity Severity,
+    const Function &Fn,
+    const CallBase *CallInstr,
+    StringRef RawValue
+  );
+
+  // Argument is passed in multiple registers, incompatible with hwreg.
+  static DiagnosticInfoInterpCC multipartArgUnsupported(
+    enum DiagnosticSeverity Severity,
+    const Function &Fn,
+    const CallBase *CallInstr,
+    Type *T
+  );
+
+  /// \see DiagnosticInfo::print.
+  void print(DiagnosticPrinter &DP) const override;
+
+  static bool classof(const DiagnosticInfo *DI) {
+    return DI->getKind() >= DK_FirstInterpCCDiagnostic &&
+           DI->getKind() <= DK_LastInterpCCDiagnostic;
+  }
+
+  // Refer to factory functions for the subset of attributes set for each
+  // diagnostic kind.
+  const CallBase *getCallInstr() const { return CallInstr; }
+  StringRef getRawValue() const { return RawValue; }
+  Type *getType() const { return T; }
+
+private:
+  DiagnosticInfoInterpCC(enum DiagnosticKind Kind,
+                         enum DiagnosticSeverity Severity,
+                         const Function &Fn,
+                         const Instruction *Instr);
+
+  const CallBase *CallInstr = nullptr;
+  Type *T = nullptr;
+  StringRef RawValue;
 };
 
 } // end namespace llvm
