@@ -1952,6 +1952,14 @@ void SelectionDAGBuilder::visitRet(const ReturnInst &I) {
   bool isVarArg = DAG.getMachineFunction().getFunction().isVarArg();
   CallingConv::ID CallConv =
     DAG.getMachineFunction().getFunction().getCallingConv();
+  // Interpcc functions never return. There's no return address on the stack.
+  if (CallConv == CallingConv::Interp) {
+    DAG.getContext()->diagnose(
+      DiagnosticInfoInterpCC::returnNotAllowed(
+        DS_Error,
+        DAG.getMachineFunction().getFunction(),
+        &I));
+  }
   Chain = DAG.getTargetLoweringInfo().LowerReturn(
       Chain, CallConv, isVarArg, Outs, OutVals, getCurSDLoc(), DAG);
 

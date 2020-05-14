@@ -87,7 +87,9 @@ enum DiagnosticKind {
   DK_InterpCCLocalAreaSizeInvalid,
   DK_InterpCCLocalAreaSizeAlignNote,
   DK_InterpCCLocalAreaSizeExceeded,
-  DK_LastInterpCCDiagnostic,
+  DK_InterpCCReturnNotAllowed,
+  DK_InterpCCMustTailCall,
+  DK_LastInterpCCDiagnostic = DK_InterpCCMustTailCall,
   DK_FirstPluginKind // Must be last value to work with
                      // getNextAvailablePluginDiagnosticKind
 };
@@ -1102,6 +1104,20 @@ public:
     const Function &Fn,
     int64_t LocalAreaSize,
     int64_t BytesUsed
+  );
+
+  // Must terminate by tail-calling another interpcc function.
+  static DiagnosticInfoInterpCC returnNotAllowed(
+    enum DiagnosticSeverity Severity,
+    const Function &Fn,
+    const Instruction *ReturnInstr
+  );
+
+  // Function F must be tail-called, use musttail marker.
+  static DiagnosticInfoInterpCC mustTailCall(
+    enum DiagnosticSeverity Severity,
+    const Function &Fn,
+    const CallBase *CallInstr
   );
 
   /// \see DiagnosticInfo::print.
