@@ -490,6 +490,26 @@ DiagnosticInfoBareboneCC DiagnosticInfoBareboneCC::localAreaSizeExceeded(
   return D;
 }
 
+DiagnosticInfoBareboneCC DiagnosticInfoBareboneCC::returnNotAllowed(
+  enum DiagnosticSeverity Severity,
+  const Function &Fn,
+  const Instruction *ReturnInstr
+) {
+  return DiagnosticInfoBareboneCC(DK_BareboneCCReturnNotAllowed,
+                                Severity, Fn, ReturnInstr);
+}
+
+DiagnosticInfoBareboneCC DiagnosticInfoBareboneCC::mustTailCall(
+  enum DiagnosticSeverity Severity,
+  const Function &Fn,
+  const CallBase *CallInstr
+) {
+  DiagnosticInfoBareboneCC D(DK_BareboneCCMustTailCall,
+                           Severity, Fn, CallInstr);
+  D.CallInstr = CallInstr;
+  return D;
+}
+
 static void PrintCallee(DiagnosticPrinter &DP, const CallBase *Instr) {
   if (!Instr) return;
   auto *F = Instr->getCalledFunction();
@@ -556,6 +576,14 @@ void DiagnosticInfoBareboneCC::print(DiagnosticPrinter &DP) const {
   case DK_BareboneCCLocalAreaSizeExceeded:
     DP << "stack size limit of " << LocalAreaSize << " exceeded: "
        << BytesUsed << " used";
+    break;
+  case DK_BareboneCCReturnNotAllowed:
+    DP << "must terminate by tail-calling another barebonecc function";
+    break;
+  case DK_BareboneCCMustTailCall:
+    DP << "function ";
+    PrintCallee(DP, CallInstr);
+    DP << " must be tail-called, use musttail marker";
     break;
   default:
     llvm_unreachable("unexpected diagnostic kind");
