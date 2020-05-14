@@ -441,6 +441,51 @@ DiagnosticInfoBareboneCC DiagnosticInfoBareboneCC::noClobberHWRegInvalid(
   return D;
 }
 
+DiagnosticInfoBareboneCC DiagnosticInfoBareboneCC::framePointerNotAllowed(
+  enum DiagnosticSeverity Severity,
+  const Function &Fn
+) {
+  return DiagnosticInfoBareboneCC(DK_BareboneCCFramePointerNotAllowed,
+                                Severity, Fn, nullptr);
+}
+
+DiagnosticInfoBareboneCC DiagnosticInfoBareboneCC::localAreaSizeInvalid(
+  enum DiagnosticSeverity Severity,
+  const Function &Fn,
+  StringRef RawValue,
+  Align Align
+) {
+  DiagnosticInfoBareboneCC D(DK_BareboneCCLocalAreaSizeInvalid,
+                           Severity, Fn, nullptr);
+  D.RawValue = RawValue;
+  D.A = Align;
+  return D;
+}
+
+DiagnosticInfoBareboneCC DiagnosticInfoBareboneCC::localAreaSizeAlignNote(
+  enum DiagnosticSeverity Severity,
+  const Function &Fn,
+  Align Align
+) {
+  DiagnosticInfoBareboneCC D(DK_BareboneCCLocalAreaSizeAlignNote,
+                           Severity, Fn, nullptr);
+  D.A = Align;
+  return D;
+}
+
+DiagnosticInfoBareboneCC DiagnosticInfoBareboneCC::localAreaSizeExceeded(
+  enum DiagnosticSeverity Severity,
+  const Function &Fn,
+  int64_t LocalAreaSize,
+  int64_t BytesUsed
+) {
+  DiagnosticInfoBareboneCC D(DK_BareboneCCLocalAreaSizeExceeded,
+                           Severity, Fn, nullptr);
+  D.LocalAreaSize = LocalAreaSize;
+  D.BytesUsed = BytesUsed;
+  return D;
+}
+
 static void PrintCallee(DiagnosticPrinter &DP, const CallBase *Instr) {
   if (!Instr) return;
   auto *F = Instr->getCalledFunction();
@@ -493,6 +538,20 @@ void DiagnosticInfoBareboneCC::print(DiagnosticPrinter &DP) const {
     break;
   case DK_BareboneCCNoClobberHWRegInvalid:
     DP << "unknown register in 'no-clobber-hwreg' attribute: " << RawValue;
+    break;
+  case DK_BareboneCCFramePointerNotAllowed:
+    DP << "frame pointer not allowed";
+    break;
+  case DK_BareboneCCLocalAreaSizeInvalid:
+    DP << "bad value in 'local-area-size' attribute: " << RawValue;
+    break;
+  case DK_BareboneCCLocalAreaSizeAlignNote:
+    DP << "the value in 'local-area-size' attribute must be a multiple of "
+       << A.value();
+    break;
+  case DK_BareboneCCLocalAreaSizeExceeded:
+    DP << "stack size limit of " << LocalAreaSize << " exceeded: "
+       << BytesUsed << " used";
     break;
   default:
     llvm_unreachable("unexpected diagnostic kind");

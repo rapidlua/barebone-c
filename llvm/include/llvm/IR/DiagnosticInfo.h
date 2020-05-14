@@ -83,6 +83,10 @@ enum DiagnosticKind {
   DK_BareboneCCHWRegAllocFailure,
   DK_BareboneCCMultipartArgUnsupported,
   DK_BareboneCCNoClobberHWRegInvalid,
+  DK_BareboneCCFramePointerNotAllowed,
+  DK_BareboneCCLocalAreaSizeInvalid,
+  DK_BareboneCCLocalAreaSizeAlignNote,
+  DK_BareboneCCLocalAreaSizeExceeded,
   DK_LastBareboneCCDiagnostic,
   DK_FirstPluginKind // Must be last value to work with
                      // getNextAvailablePluginDiagnosticKind
@@ -1071,6 +1075,35 @@ public:
     StringRef RawValue
   );
 
+  // Frame pointer not allowed.
+  static DiagnosticInfoBareboneCC framePointerNotAllowed(
+    enum DiagnosticSeverity Severity,
+    const Function &Fn
+  );
+
+  // Bad value in 'local-area-size' attribute.
+  static DiagnosticInfoBareboneCC localAreaSizeInvalid(
+    enum DiagnosticSeverity Severity,
+    const Function &Fn,
+    StringRef RawValue,
+    Align Align
+  );
+
+  // The value in 'local-area-size' attribute must be a multiple of Align.
+  static DiagnosticInfoBareboneCC localAreaSizeAlignNote(
+    enum DiagnosticSeverity Severity,
+    const Function &Fn,
+    Align Align
+  );
+
+  // Stack size limit of LocalAreaSize exceeded: BytesUsed used.
+  static DiagnosticInfoBareboneCC localAreaSizeExceeded(
+    enum DiagnosticSeverity Severity,
+    const Function &Fn,
+    int64_t LocalAreaSize,
+    int64_t BytesUsed
+  );
+
   /// \see DiagnosticInfo::print.
   void print(DiagnosticPrinter &DP) const override;
 
@@ -1084,6 +1117,9 @@ public:
   const CallBase *getCallInstr() const { return CallInstr; }
   StringRef getRawValue() const { return RawValue; }
   Type *getType() const { return T; }
+  Align getAlign() const { return A; }
+  int64_t getLocalAreaSize() const { return LocalAreaSize; }
+  int64_t getBytesUsed() const { return BytesUsed; }
 
 private:
   DiagnosticInfoBareboneCC(enum DiagnosticKind Kind,
@@ -1094,6 +1130,9 @@ private:
   const CallBase *CallInstr = nullptr;
   Type *T = nullptr;
   StringRef RawValue;
+  Align A;
+  int64_t LocalAreaSize = 0;
+  int64_t BytesUsed = 0;
 };
 
 } // end namespace llvm
