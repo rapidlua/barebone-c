@@ -1946,6 +1946,14 @@ void SelectionDAGBuilder::visitRet(const ReturnInst &I) {
   bool isVarArg = DAG.getMachineFunction().getFunction().isVarArg();
   CallingConv::ID CallConv =
     DAG.getMachineFunction().getFunction().getCallingConv();
+  // Barebonecc functions never return. There's no return address on the stack.
+  if (CallConv == CallingConv::Barebone) {
+    DAG.getContext()->diagnose(
+      DiagnosticInfoBareboneCC::returnNotAllowed(
+        DS_Error,
+        DAG.getMachineFunction().getFunction(),
+        &I));
+  }
   Chain = DAG.getTargetLoweringInfo().LowerReturn(
       Chain, CallConv, isVarArg, Outs, OutVals, getCurSDLoc(), DAG);
 
@@ -9207,6 +9215,23 @@ TargetLowering::LowerCallTo(TargetLowering::CallLoweringInfo &CLI) const {
   if (CLI.CallConv == CallingConv::Barebone) {
     HWRegAttrParser.reset(new class HWRegAttrParser(this, CLI.DAG, CLI.CB,
                                                     CLI.CB->getAttributes()));
+    // Barebonecc function has no means to return to the caller, hence
+    // only barebonecc fn tail-calling another barebonecc fn is allowed.
+    // To enforce this requirement, only musttail call sites are
+    // accepted.
+    // Note: if the call site is musttail, the verifier has already
+    // ensured that the caller and the callee have the same calling
+    // convention.
+    // Note: verifier doesn't validate barebonecc constraints; we have
+    // an optional legalize pass promoting barebonecc calls to musttail;
+    // to be invoked after inlining took place.
+    auto *CI = dyn_cast<CallInst>(CLI.CB);
+    if (!CI || !CI->isMustTailCall()) {
+      auto &MF = CLI.DAG.getMachineFunction();
+      CLI.DAG.getContext()->diagnose(
+        DiagnosticInfoBareboneCC::mustTailCall(
+          DS_Error, MF.getFunction(), CLI.CB));
+    }
   }
 
   // Handle all of the outgoing arguments.
