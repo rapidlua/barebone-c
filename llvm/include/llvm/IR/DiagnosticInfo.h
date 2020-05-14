@@ -87,7 +87,9 @@ enum DiagnosticKind {
   DK_BareboneCCLocalAreaSizeInvalid,
   DK_BareboneCCLocalAreaSizeAlignNote,
   DK_BareboneCCLocalAreaSizeExceeded,
-  DK_LastBareboneCCDiagnostic,
+  DK_BareboneCCReturnNotAllowed,
+  DK_BareboneCCMustTailCall,
+  DK_LastBareboneCCDiagnostic = DK_BareboneCCMustTailCall,
   DK_FirstPluginKind // Must be last value to work with
                      // getNextAvailablePluginDiagnosticKind
 };
@@ -1102,6 +1104,20 @@ public:
     const Function &Fn,
     int64_t LocalAreaSize,
     int64_t BytesUsed
+  );
+
+  // Must terminate by tail-calling another barebonecc function.
+  static DiagnosticInfoBareboneCC returnNotAllowed(
+    enum DiagnosticSeverity Severity,
+    const Function &Fn,
+    const Instruction *ReturnInstr
+  );
+
+  // Function F must be tail-called, use musttail marker.
+  static DiagnosticInfoBareboneCC mustTailCall(
+    enum DiagnosticSeverity Severity,
+    const Function &Fn,
+    const CallBase *CallInstr
   );
 
   /// \see DiagnosticInfo::print.
