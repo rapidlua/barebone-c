@@ -489,6 +489,26 @@ DiagnosticInfoInterpCC DiagnosticInfoInterpCC::localAreaSizeExceeded(
   return D;
 }
 
+DiagnosticInfoInterpCC DiagnosticInfoInterpCC::returnNotAllowed(
+  enum DiagnosticSeverity Severity,
+  const Function &Fn,
+  const Instruction *ReturnInstr
+) {
+  return DiagnosticInfoInterpCC(DK_InterpCCReturnNotAllowed,
+                                Severity, Fn, ReturnInstr);
+}
+
+DiagnosticInfoInterpCC DiagnosticInfoInterpCC::mustTailCall(
+  enum DiagnosticSeverity Severity,
+  const Function &Fn,
+  const CallBase *CallInstr
+) {
+  DiagnosticInfoInterpCC D(DK_InterpCCMustTailCall,
+                           Severity, Fn, CallInstr);
+  D.CallInstr = CallInstr;
+  return D;
+}
+
 static void PrintCallee(DiagnosticPrinter &DP, const CallBase *Instr) {
   if (!Instr) return;
   auto *F = Instr->getCalledFunction();
@@ -555,6 +575,14 @@ void DiagnosticInfoInterpCC::print(DiagnosticPrinter &DP) const {
   case DK_InterpCCLocalAreaSizeExceeded:
     DP << "stack size limit of " << LocalAreaSize << " exceeded: "
        << BytesUsed << " used";
+    break;
+  case DK_InterpCCReturnNotAllowed:
+    DP << "must terminate by tail-calling another interpcc function";
+    break;
+  case DK_InterpCCMustTailCall:
+    DP << "function ";
+    PrintCallee(DP, CallInstr);
+    DP << " must be tail-called, use musttail marker";
     break;
   default:
     llvm_unreachable("unexpected diagnostic kind");
