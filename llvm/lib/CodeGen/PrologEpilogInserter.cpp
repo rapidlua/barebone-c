@@ -1081,6 +1081,63 @@ void PEI::calculateFrameObjectOffsets(MachineFunction &MF) {
     Offset = alignTo(Offset, StackAlign, Skew);
   }
 
+  // Interpcc special stack layout
+  if (MF.getFunction().getCallingConv() == CallingConv::Interp) {
+    const Function &F = MF.getFunction();
+
+    // Ensure no frame pointer is in use;
+    // assume stack realignment/var sized objects implies FP;
+    // assume base pointer implies FP
+    if (TFI.hasFP(MF)) {
+      F.getContext().diagnose(
+        DiagnosticInfoInterpCC::framePointerNotAllowed(DS_Error, F));
+    } else {
+      assert(!MFI.hasVarSizedObjects() && "No var sized objects in interpcc");
+      assert(!MF.getSubtarget().getRegisterInfo()->needsStackRealignment(MF)
+             && "No stack realignment in interpcc");
+    }
+
+    int64_t LocalAreaSize = 0;
+    // Parse and validate local-area-size
+    StringRef V = F.getFnAttribute("local-area-size").getValueAsString();
+    if (!V.empty()) {
+      Align StackAlign = Align(std::max(MaxAlign, TFI.getStackAlignment()));
+      char *E;
+      int64_t Size = strtol(V.data(), &E, 10); // Backed by std::string
+      int64_t SizeAligned = (int64_t)alignTo(Size, StackAlign);
+      if (*E || Size < 0 || Size != SizeAligned) {
+        LocalAreaSize = -1;
+        F.getContext().diagnose(
+          DiagnosticInfoInterpCC::localAreaSizeInvalid(
+            DS_Error, F, V, StackAlign));
+        if (Size != 0 && Size != SizeAligned) {
+          F.getContext().diagnose(
+            DiagnosticInfoInterpCC::localAreaSizeAlignNote(
+              DS_Note, F, StackAlign));
+        }
+      } else LocalAreaSize = Size;
+    }
+
+    // Ensure we aren't exceeding the local area size
+    if (Offset > LocalAreaSize + LocalAreaOffset) {
+      if (LocalAreaSize >= 0)
+        F.getContext().diagnose(
+          DiagnosticInfoInterpCC::localAreaSizeExceeded(
+            DS_Error, F, LocalAreaSize, Offset - LocalAreaOffset));
+    } else {
+      LocalAreaSize += LocalAreaOffset;
+
+      int delta = StackGrowsDown ? Offset - LocalAreaSize
+                                 : LocalAreaSize - Offset;
+      // Pull objects up towards the stack top
+      for (unsigned i = 0, e = MFI.getObjectIndexEnd(); i != e; ++i) {
+        if (!MFI.isDeadObjectIndex(i))
+          MFI.setObjectOffset(i, MFI.getObjectOffset(i) + delta);
+      }
+      Offset = LocalAreaSize;
+    }
+  }
+
   // Update frame info to pretend that this is part of the stack...
   int64_t StackSize = Offset - LocalAreaOffset;
   MFI.setStackSize(StackSize);
