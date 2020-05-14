@@ -132,6 +132,10 @@ unsigned TargetFrameLowering::getStackAlignmentSkew(
   if (LLVM_UNLIKELY(MF.getFunction().getCallingConv() == CallingConv::HHVM))
     return MF.getTarget().getAllocaPointerSize();
 
+  // Interpcc function doesn't have a return address on the stack.
+  if (LLVM_UNLIKELY(MF.getFunction().getCallingConv() == CallingConv::Interp))
+    return MF.getTarget().getAllocaPointerSize();
+
   return 0;
 }
 

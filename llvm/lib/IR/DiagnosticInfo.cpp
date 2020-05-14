@@ -441,6 +441,51 @@ DiagnosticInfoInterpCC DiagnosticInfoInterpCC::noClobberHWRegInvalid(
   return D;
 }
 
+DiagnosticInfoInterpCC DiagnosticInfoInterpCC::framePointerNotAllowed(
+  enum DiagnosticSeverity Severity,
+  const Function &Fn
+) {
+  return DiagnosticInfoInterpCC(DK_InterpCCFramePointerNotAllowed,
+                                Severity, Fn, nullptr);
+}
+
+DiagnosticInfoInterpCC DiagnosticInfoInterpCC::localAreaSizeInvalid(
+  enum DiagnosticSeverity Severity,
+  const Function &Fn,
+  StringRef RawValue,
+  Align Align
+) {
+  DiagnosticInfoInterpCC D(DK_InterpCCLocalAreaSizeInvalid,
+                           Severity, Fn, nullptr);
+  D.RawValue = RawValue;
+  D.A = Align;
+  return D;
+}
+
+DiagnosticInfoInterpCC DiagnosticInfoInterpCC::localAreaSizeAlignNote(
+  enum DiagnosticSeverity Severity,
+  const Function &Fn,
+  Align Align
+) {
+  DiagnosticInfoInterpCC D(DK_InterpCCLocalAreaSizeAlignNote,
+                           Severity, Fn, nullptr);
+  D.A = Align;
+  return D;
+}
+
+DiagnosticInfoInterpCC DiagnosticInfoInterpCC::localAreaSizeExceeded(
+  enum DiagnosticSeverity Severity,
+  const Function &Fn,
+  int64_t LocalAreaSize,
+  int64_t BytesUsed
+) {
+  DiagnosticInfoInterpCC D(DK_InterpCCLocalAreaSizeExceeded,
+                           Severity, Fn, nullptr);
+  D.LocalAreaSize = LocalAreaSize;
+  D.BytesUsed = BytesUsed;
+  return D;
+}
+
 static void PrintCallee(DiagnosticPrinter &DP, const CallBase *Instr) {
   if (!Instr) return;
   auto *F = Instr->getCalledFunction();
@@ -493,6 +538,20 @@ void DiagnosticInfoInterpCC::print(DiagnosticPrinter &DP) const {
     break;
   case DK_InterpCCNoClobberHWRegInvalid:
     DP << "unknown register in 'no-clobber-hwreg' attribute: " << RawValue;
+    break;
+  case DK_InterpCCFramePointerNotAllowed:
+    DP << "frame pointer not allowed";
+    break;
+  case DK_InterpCCLocalAreaSizeInvalid:
+    DP << "bad value in 'local-area-size' attribute: " << RawValue;
+    break;
+  case DK_InterpCCLocalAreaSizeAlignNote:
+    DP << "the value in 'local-area-size' attribute must be a multiple of "
+       << A.value();
+    break;
+  case DK_InterpCCLocalAreaSizeExceeded:
+    DP << "stack size limit of " << LocalAreaSize << " exceeded: "
+       << BytesUsed << " used";
     break;
   default:
     llvm_unreachable("unexpected diagnostic kind");
