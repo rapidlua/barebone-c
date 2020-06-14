@@ -244,18 +244,15 @@ define void @f_thunk(i8* %this, ...) {
 ; X86-NOSSE:       # %bb.0:
 ; X86-NOSSE-NEXT:    pushl %ebp
 ; X86-NOSSE-NEXT:    movl %esp, %ebp
-; X86-NOSSE-NEXT:    pushl %esi
 ; X86-NOSSE-NEXT:    andl $-16, %esp
 ; X86-NOSSE-NEXT:    subl $32, %esp
-; X86-NOSSE-NEXT:    movl 8(%ebp), %esi
-; X86-NOSSE-NEXT:    leal 12(%ebp), %eax
-; X86-NOSSE-NEXT:    movl %eax, (%esp)
-; X86-NOSSE-NEXT:    pushl %esi
+; X86-NOSSE-NEXT:    movl 8(%ebp), %eax
+; X86-NOSSE-NEXT:    leal 12(%ebp), %ecx
+; X86-NOSSE-NEXT:    movl %ecx, (%esp)
+; X86-NOSSE-NEXT:    pushl %eax
 ; X86-NOSSE-NEXT:    calll _get_f
 ; X86-NOSSE-NEXT:    addl $4, %esp
-; X86-NOSSE-NEXT:    movl %esi, 8(%ebp)
-; X86-NOSSE-NEXT:    leal -4(%ebp), %esp
-; X86-NOSSE-NEXT:    popl %esi
+; X86-NOSSE-NEXT:    movl %ebp, %esp
 ; X86-NOSSE-NEXT:    popl %ebp
 ; X86-NOSSE-NEXT:    jmpl *%eax # TAILCALL
 ;
@@ -263,24 +260,21 @@ define void @f_thunk(i8* %this, ...) {
 ; X86-SSE:       # %bb.0:
 ; X86-SSE-NEXT:    pushl %ebp
 ; X86-SSE-NEXT:    movl %esp, %ebp
-; X86-SSE-NEXT:    pushl %esi
 ; X86-SSE-NEXT:    andl $-16, %esp
 ; X86-SSE-NEXT:    subl $80, %esp
 ; X86-SSE-NEXT:    movaps %xmm2, {{[-0-9]+}}(%e{{[sb]}}p) # 16-byte Spill
 ; X86-SSE-NEXT:    movaps %xmm1, {{[-0-9]+}}(%e{{[sb]}}p) # 16-byte Spill
 ; X86-SSE-NEXT:    movaps %xmm0, (%esp) # 16-byte Spill
-; X86-SSE-NEXT:    movl 8(%ebp), %esi
-; X86-SSE-NEXT:    leal 12(%ebp), %eax
-; X86-SSE-NEXT:    movl %eax, {{[0-9]+}}(%esp)
-; X86-SSE-NEXT:    pushl %esi
+; X86-SSE-NEXT:    movl 8(%ebp), %eax
+; X86-SSE-NEXT:    leal 12(%ebp), %ecx
+; X86-SSE-NEXT:    movl %ecx, {{[0-9]+}}(%esp)
+; X86-SSE-NEXT:    pushl %eax
 ; X86-SSE-NEXT:    calll _get_f
 ; X86-SSE-NEXT:    addl $4, %esp
-; X86-SSE-NEXT:    movl %esi, 8(%ebp)
 ; X86-SSE-NEXT:    movaps (%esp), %xmm0 # 16-byte Reload
 ; X86-SSE-NEXT:    movaps {{[-0-9]+}}(%e{{[sb]}}p), %xmm1 # 16-byte Reload
 ; X86-SSE-NEXT:    movaps {{[-0-9]+}}(%e{{[sb]}}p), %xmm2 # 16-byte Reload
-; X86-SSE-NEXT:    leal -4(%ebp), %esp
-; X86-SSE-NEXT:    popl %esi
+; X86-SSE-NEXT:    movl %ebp, %esp
 ; X86-SSE-NEXT:    popl %ebp
 ; X86-SSE-NEXT:    jmpl *%eax # TAILCALL
   %ap = alloca [4 x i8*], align 16
@@ -315,9 +309,7 @@ define void @g_thunk(i8* %fptr_i8, ...) {
 ;
 ; X86-LABEL: g_thunk:
 ; X86:       # %bb.0:
-; X86-NEXT:    movl {{[0-9]+}}(%esp), %eax
-; X86-NEXT:    movl %eax, {{[0-9]+}}(%esp)
-; X86-NEXT:    jmpl *%eax # TAILCALL
+; X86-NEXT:    jmpl *4(%esp) # TAILCALL
   %fptr = bitcast i8* %fptr_i8 to void (i8*, ...)*
   musttail call void (i8*, ...) %fptr(i8* %fptr_i8, ...)
   ret void
@@ -376,10 +368,9 @@ define void @h_thunk(%struct.Foo* %this, ...) {
 ; X86-NEXT:    movl %eax, {{[0-9]+}}(%esp)
 ; X86-NEXT:    jmpl *%ecx # TAILCALL
 ; X86-NEXT:  LBB2_2: # %else
-; X86-NEXT:    movl 8(%eax), %ecx
+; X86-NEXT:    movl 8(%eax), %eax
 ; X86-NEXT:    movl $42, _g
-; X86-NEXT:    movl %eax, {{[0-9]+}}(%esp)
-; X86-NEXT:    jmpl *%ecx # TAILCALL
+; X86-NEXT:    jmpl *%eax # TAILCALL
   %cond_p = getelementptr %struct.Foo, %struct.Foo* %this, i32 0, i32 0
   %cond = load i1, i1* %cond_p
   br i1 %cond, label %then, label %else

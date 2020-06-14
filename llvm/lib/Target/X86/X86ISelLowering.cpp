@@ -3791,6 +3791,11 @@ static SDValue getMOVL(SelectionDAG &DAG, const SDLoc &dl, MVT VT, SDValue V1,
   return DAG.getVectorShuffle(VT, dl, V1, V2, Mask);
 }
 
+static
+bool MatchingStackOffset(SDValue Arg, unsigned Offset, ISD::ArgFlagsTy Flags,
+                         MachineFrameInfo &MFI, const MachineRegisterInfo *MRI,
+                         const X86InstrInfo *TII, const CCValAssign &VA);
+
 SDValue
 X86TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
                              SmallVectorImpl<SDValue> &InVals) const {
@@ -4128,6 +4133,9 @@ X86TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
     SmallVector<SDValue, 8> MemOpChains2;
     SDValue FIN;
     int FI = 0;
+    MachineFrameInfo &MFI = MF.getFrameInfo();
+    const MachineRegisterInfo *MRI = &MF.getRegInfo();
+    const X86InstrInfo *TII = Subtarget.getInstrInfo();
     for (unsigned I = 0, OutsIndex = 0, E = ArgLocs.size(); I != E;
          ++I, ++OutsIndex) {
       CCValAssign &VA = ArgLocs[I];
@@ -4169,6 +4177,10 @@ X86TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
                                                          ArgChain,
                                                          Flags, DAG, dl));
       } else {
+        // Check if the arguments are already laid out in the right way
+        // as the caller's fixed stack objects.
+        if (MatchingStackOffset(Arg, Offset, Flags, MFI, MRI, TII, VA))
+          continue;
         // Store relative to framepointer.
         MemOpChains2.push_back(DAG.getStore(
             ArgChain, dl, Arg, FIN,
