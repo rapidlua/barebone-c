@@ -430,6 +430,17 @@ DiagnosticInfoBareboneCC DiagnosticInfoBareboneCC::multipartArgUnsupported(
   return D;
 }
 
+DiagnosticInfoBareboneCC DiagnosticInfoBareboneCC::noClobberHWRegInvalid(
+  enum DiagnosticSeverity Severity,
+  const Function &Fn,
+  StringRef RawValue
+) {
+  DiagnosticInfoBareboneCC D(DK_BareboneCCNoClobberHWRegInvalid,
+                           Severity, Fn, nullptr);
+  D.RawValue = RawValue;
+  return D;
+}
+
 static void PrintCallee(DiagnosticPrinter &DP, const CallBase *Instr) {
   if (!Instr) return;
   auto *F = Instr->getCalledFunction();
@@ -479,6 +490,9 @@ void DiagnosticInfoBareboneCC::print(DiagnosticPrinter &DP) const {
       DP << " in a call to ";
       PrintCallee(DP, CallInstr);
     }
+    break;
+  case DK_BareboneCCNoClobberHWRegInvalid:
+    DP << "unknown register in 'no-clobber-hwreg' attribute: " << RawValue;
     break;
   default:
     llvm_unreachable("unexpected diagnostic kind");

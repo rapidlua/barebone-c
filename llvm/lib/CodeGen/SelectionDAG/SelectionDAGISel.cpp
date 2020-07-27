@@ -661,6 +661,25 @@ bool SelectionDAGISel::runOnMachineFunction(MachineFunction &mf) {
   // Determine if floating point is used for msvc
   computeUsesMSVCFloatingPoint(TM.getTargetTriple(), Fn, MF->getMMI());
 
+  // Parse no-clobber-hwreg, first needed in finalizeLowering
+  const Function &F = MF->getFunction();
+  if (F.getCallingConv() == CallingConv::Barebone) {
+    StringRef L = F.getFnAttribute("no-clobber-hwreg").getValueAsString();
+    std::pair<StringRef, StringRef> S = getToken(L, ",");
+    while (!S.first.empty()) {
+      StringRef RegName = S.first;
+      S = getToken(S.second, ",");
+      MCRegister R = TLI->getRegForHWReg(&TRI, RegName);
+      if (!R.isValid()) {
+        CurDAG->getContext()->diagnose(
+          DiagnosticInfoBareboneCC::noClobberHWRegInvalid(
+            DS_Error, MF->getFunction(), RegName));
+        break;
+      }
+      MF->addNoClobberHWReg(R);
+    }
+  }
+
   // Release function-specific state. SDB and CurDAG are already cleared
   // at this point.
   FuncInfo->clear();
