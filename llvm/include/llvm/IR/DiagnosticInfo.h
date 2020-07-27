@@ -82,6 +82,7 @@ enum DiagnosticKind {
   DK_InterpCCHWRegInvalid = DK_FirstInterpCCDiagnostic,
   DK_InterpCCHWRegAllocFailure,
   DK_InterpCCMultipartArgUnsupported,
+  DK_InterpCCNoClobberHWRegInvalid,
   DK_LastInterpCCDiagnostic,
   DK_FirstPluginKind // Must be last value to work with
                      // getNextAvailablePluginDiagnosticKind
@@ -1061,6 +1062,13 @@ public:
     const Function &Fn,
     const CallBase *CallInstr,
     Type *T
+  );
+
+  // Unknown register in no-clobber-hwreg attribute.
+  static DiagnosticInfoInterpCC noClobberHWRegInvalid(
+    enum DiagnosticSeverity Severity,
+    const Function &Fn,
+    StringRef RawValue
   );
 
   /// \see DiagnosticInfo::print.
