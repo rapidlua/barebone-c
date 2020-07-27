@@ -321,6 +321,10 @@ class MachineFunction {
   /// construct a table of valid longjmp targets for Windows Control Flow Guard.
   std::vector<MCSymbol *> LongjmpTargets;
 
+  // List of target-dependent hardware registers that aren't clobbered
+  // according to no-clobber-hwreg function attribute.
+  std::vector<MCRegister> NoClobberHWReg;
+
   /// \name Exception Handling
   /// \{
 
@@ -641,6 +645,14 @@ public:
 
   /// Should we be emitting segmented stack stuff for the function
   bool shouldSplitStack() const;
+
+  // Append a register to no-clobber-hwreg list.
+  void addNoClobberHWReg(MCRegister R) { NoClobberHWReg.push_back(R); }
+
+  // Get no-clobber-hwreg list.
+  const std::vector<MCRegister> &getNoClobberHWReg() const {
+    return NoClobberHWReg;
+  }
 
   /// getNumBlockIDs - Return the number of MBB ID's allocated.
   unsigned getNumBlockIDs() const { return (unsigned)MBBNumbering.size(); }
