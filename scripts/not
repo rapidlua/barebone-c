@@ -1,0 +1,8 @@
+#!/bin/sh
+# remove --crash option (crash expected) if invoking llc
+# this wrapper exists because abort() in WASM llc doesn't cause
+# abnormal termination
+LLC=$(realpath "$(dirname "$0")")/llc
+_NOT=$(realpath "$(dirname "$0")")/_not
+if [ "$1" = --crash ] && [ -f "$2" ] && [ "$(realpath "$2")" = "$LLC" ]; then shift; fi
+exec $_NOT "$@"

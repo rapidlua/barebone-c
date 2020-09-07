@@ -1,0 +1,3 @@
+#!/bin/sh
+LLC_WASM=$(realpath "$(dirname "$0")")/llc.wasm
+exec wasmer run --backend=cranelift --dir=/ --env=PWD=$PWD -- $LLC_WASM "$@"

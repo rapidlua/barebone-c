@@ -1,0 +1,19 @@
+[package]
+name = "rapidlua/<PKG_NAME>"
+version = "<PKG_VERSION>"
+description = "LLVM llc command with interpcc extension"
+license = "Apache-2.0"
+license-file = "LICENSE.TXT"
+repository = "https://github.com/rapidlua/llvm-interpcc"
+
+[[module]]
+name = "<PKG_NAME>"
+source = "llc.wasm"
+abi = "wasi"
+
+[module.interfaces]
+wasi = "0.1.0-unstable"
+
+[[command]]
+name = "<PKG_NAME>"
+module = "<PKG_NAME>"
