@@ -51,6 +51,9 @@ void initializeAnalysis(PassRegistry&);
 /// Initialize all passes linked into the Coroutines library.
 void initializeCoroutines(PassRegistry&);
 
+/// Initialize all passes linked into the BareboneCC library.
+void initializeBareboneCC(PassRegistry&);
+
 /// Initialize all passes linked into the CodeGen library.
 void initializeCodeGen(PassRegistry&);
 
