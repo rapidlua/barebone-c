@@ -506,6 +506,28 @@ DiagnosticInfoBareboneCC DiagnosticInfoBareboneCC::mustTailCall(
   return D;
 }
 
+DiagnosticInfoBareboneCC DiagnosticInfoBareboneCC::notInTailCallPosition(
+  enum DiagnosticSeverity Severity,
+  const Function &Fn,
+  const CallBase *CallInstr
+) {
+  DiagnosticInfoBareboneCC D(DK_BareboneCCNotInTailCallPosition,
+                           Severity, Fn, CallInstr);
+  D.CallInstr = CallInstr;
+  return D;
+}
+
+DiagnosticInfoBareboneCC DiagnosticInfoBareboneCC::inNonBareboneFunction(
+  enum DiagnosticSeverity Severity,
+  const Function &Fn,
+  const CallBase *CallInstr
+) {
+  DiagnosticInfoBareboneCC D(DK_BareboneCCInNonBareboneFunction,
+                           Severity, Fn, CallInstr);
+  D.CallInstr = CallInstr;
+  return D;
+}
+
 static void PrintCallee(DiagnosticPrinter &DP, const CallBase *Instr) {
   if (!Instr) return;
   auto *F = Instr->getCalledFunction();
@@ -580,6 +602,16 @@ void DiagnosticInfoBareboneCC::print(DiagnosticPrinter &DP) const {
     DP << "function ";
     PrintCallee(DP, CallInstr);
     DP << " must be tail-called, use musttail marker";
+    break;
+  case DK_BareboneCCNotInTailCallPosition:
+    DP << "a call to function ";
+    PrintCallee(DP, CallInstr);
+    DP << " must be in tail-call position";
+    break;
+  case DK_BareboneCCInNonBareboneFunction:
+    DP << "a call to function ";
+    PrintCallee(DP, CallInstr);
+    DP << " is only allowed in barebonecc functions";
     break;
   default:
     llvm_unreachable("unexpected diagnostic kind");

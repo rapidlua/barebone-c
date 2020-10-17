@@ -52,6 +52,7 @@
 #include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Support/YAMLTraits.h"
 #include "llvm/Target/TargetMachine.h"
+#include "llvm/Transforms/BareboneCC.h"
 #include "llvm/Transforms/Coroutines.h"
 #include "llvm/Transforms/IPO/AlwaysInliner.h"
 #include "llvm/Transforms/IPO/PassManagerBuilder.h"
@@ -250,6 +251,11 @@ static cl::opt<bool> DiscardValueNames(
     cl::desc("Discard names from Value (other than GlobalValue)."),
     cl::init(false), cl::Hidden);
 
+static cl::opt<bool> BareboneCC(
+  "enable-barebonecc",
+  cl::desc("Enable barebonecc legalisation pass."),
+  cl::init(false), cl::Hidden);
+
 static cl::opt<bool> Coroutines(
   "enable-coroutines",
   cl::desc("Enable coroutine passes."),
@@ -408,6 +414,9 @@ static void AddOptimizationPasses(legacy::PassManagerBase &MPM,
   if (TM)
     TM->adjustPassManager(Builder);
 
+  if (BareboneCC)
+    addBareboneCCPassesToExtensionPoints(Builder);
+
   if (Coroutines)
     addCoroutinePassesToExtensionPoints(Builder);
 
@@ -550,6 +559,7 @@ int main(int argc, char **argv) {
   PassRegistry &Registry = *PassRegistry::getPassRegistry();
   initializeCore(Registry);
   initializeCoroutines(Registry);
+  initializeBareboneCC(Registry);
   initializeScalarOpts(Registry);
   initializeObjCARCOpts(Registry);
   initializeVectorization(Registry);

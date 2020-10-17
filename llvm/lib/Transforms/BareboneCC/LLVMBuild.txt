@@ -1,0 +1,6 @@
+
+[component_0]
+type = Library
+name = BareboneCC
+parent = Transforms
+required_libraries = Analysis Core IPO Scalar Support TransformUtils
