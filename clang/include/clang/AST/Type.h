@@ -3667,6 +3667,13 @@ public:
     //
     // regparm is either 0 (no regparm attribute) or the regparm value+1.
     enum { CallConvMask = 0x1F };
+    // Normally a calling convention is a small integer.  FunctionType
+    // layout is optimized for the common case, allocating just a few
+    // bits to store calling convention inline.  If a larger value has
+    // to be stored, it is saved in a trailing object (see
+    // Function(No?)ProtoType for details).  ExtCallConv pseudo CC
+    // indicates the presence of extended calling convention trailer.
+    static constexpr CallingConv ExtCallConv = static_cast<CallingConv>(CallConvMask);
     enum { NoReturnMask = 0x20 };
     enum { ProducesResultMask = 0x40 };
     enum { NoCallerSavedRegsMask = 0x80 };
@@ -3676,9 +3683,10 @@ public:
     };
     enum { NoCfCheckMask = 0x800 };
     enum { CmseNSCallMask = 0x1000 };
+    CallingConv CC = CC_C;
     uint16_t Bits = CC_C;
 
-    ExtInfo(unsigned Bits) : Bits(static_cast<uint16_t>(Bits)) {}
+    ExtInfo(unsigned Bits, CallingConv CC) : CC(CC), Bits(static_cast<uint16_t>(Bits)) {}
 
   public:
     // Constructor with no defaults. Use this when you know that you
@@ -3687,12 +3695,14 @@ public:
             bool producesResult, bool noCallerSavedRegs, bool NoCfCheck,
             bool cmseNSCall) {
       assert((!hasRegParm || regParm < 7) && "Invalid regparm value");
-      Bits = ((unsigned)cc) | (noReturn ? NoReturnMask : 0) |
+      CC = cc;
+      Bits = ((unsigned)std::min(cc, ExtCallConv) |
+             (noReturn ? NoReturnMask : 0) |
              (producesResult ? ProducesResultMask : 0) |
              (noCallerSavedRegs ? NoCallerSavedRegsMask : 0) |
              (hasRegParm ? ((regParm + 1) << RegParmOffset) : 0) |
              (NoCfCheck ? NoCfCheckMask : 0) |
-             (cmseNSCall ? CmseNSCallMask : 0);
+             (cmseNSCall ? CmseNSCallMask : 0));
     }
 
     // Constructor with all defaults. Use when for example creating a
@@ -3701,7 +3711,7 @@ public:
 
     // Constructor with just the calling convention, which is an important part
     // of the canonical type.
-    ExtInfo(CallingConv CC) : Bits(CC) {}
+    ExtInfo(CallingConv CC) : CC(CC), Bits(std::min(CC, ExtCallConv)) {}
 
     bool getNoReturn() const { return Bits & NoReturnMask; }
     bool getProducesResult() const { return Bits & ProducesResultMask; }
@@ -3717,13 +3727,13 @@ public:
       return RegParm;
     }
 
-    CallingConv getCC() const { return CallingConv(Bits & CallConvMask); }
+    CallingConv getCC() const { return CC; }
 
     bool operator==(ExtInfo Other) const {
-      return Bits == Other.Bits;
+      return Bits == Other.Bits && CC == Other.CC;
     }
     bool operator!=(ExtInfo Other) const {
-      return Bits != Other.Bits;
+      return Bits != Other.Bits && CC == Other.CC;
     }
 
     // Note that we don't have setters. That is by design, use
@@ -3731,51 +3741,54 @@ public:
 
     ExtInfo withNoReturn(bool noReturn) const {
       if (noReturn)
-        return ExtInfo(Bits | NoReturnMask);
+        return ExtInfo(Bits | NoReturnMask, CC);
       else
-        return ExtInfo(Bits & ~NoReturnMask);
+        return ExtInfo(Bits & ~NoReturnMask, CC);
     }
 
     ExtInfo withProducesResult(bool producesResult) const {
       if (producesResult)
-        return ExtInfo(Bits | ProducesResultMask);
+        return ExtInfo(Bits | ProducesResultMask, CC);
       else
-        return ExtInfo(Bits & ~ProducesResultMask);
+        return ExtInfo(Bits & ~ProducesResultMask, CC);
     }
 
     ExtInfo withCmseNSCall(bool cmseNSCall) const {
       if (cmseNSCall)
-        return ExtInfo(Bits | CmseNSCallMask);
+        return ExtInfo(Bits | CmseNSCallMask, CC);
       else
-        return ExtInfo(Bits & ~CmseNSCallMask);
+        return ExtInfo(Bits & ~CmseNSCallMask, CC);
     }
 
     ExtInfo withNoCallerSavedRegs(bool noCallerSavedRegs) const {
       if (noCallerSavedRegs)
-        return ExtInfo(Bits | NoCallerSavedRegsMask);
+        return ExtInfo(Bits | NoCallerSavedRegsMask, CC);
       else
-        return ExtInfo(Bits & ~NoCallerSavedRegsMask);
+        return ExtInfo(Bits & ~NoCallerSavedRegsMask, CC);
     }
 
     ExtInfo withNoCfCheck(bool noCfCheck) const {
       if (noCfCheck)
-        return ExtInfo(Bits | NoCfCheckMask);
+        return ExtInfo(Bits | NoCfCheckMask, CC);
       else
-        return ExtInfo(Bits & ~NoCfCheckMask);
+        return ExtInfo(Bits & ~NoCfCheckMask, CC);
     }
 
     ExtInfo withRegParm(unsigned RegParm) const {
       assert(RegParm < 7 && "Invalid regparm value");
       return ExtInfo((Bits & ~RegParmMask) |
-                     ((RegParm + 1) << RegParmOffset));
+                     ((RegParm + 1) << RegParmOffset), CC);
     }
 
     ExtInfo withCallingConv(CallingConv cc) const {
-      return ExtInfo((Bits & ~CallConvMask) | (unsigned) cc);
+      return ExtInfo((Bits & ~CallConvMask) |
+                     (unsigned)std::min(cc, ExtCallConv), cc);
     }
 
     void Profile(llvm::FoldingSetNodeID &ID) const {
       ID.AddInteger(Bits);
+      if (CC >= ExtCallConv)
+        ID.AddPointer(reinterpret_cast<void *>(CC));
     }
   };
 
@@ -3806,6 +3819,19 @@ protected:
     return Qualifiers::fromFastMask(FunctionTypeBits.FastTypeQuals);
   }
 
+  bool hasExtendedCallingConv() const {
+    return ExtInfo::ExtCallConv ==
+           static_cast<CallingConv>(FunctionTypeBits.ExtInfo &
+                                    ExtInfo::CallConvMask);
+  }
+
+  static bool isExtendedCallingConv(CallingConv CC) {
+    return CC >= ExtInfo::ExtCallConv;
+  }
+
+private:
+  __attribute__((noinline, pure)) CallingConv getExtendedCallingConv() const;
+
 public:
   QualType getReturnType() const { return ResultType; }
 
@@ -3819,7 +3845,13 @@ public:
 
   bool getCmseNSCallAttr() const { return getExtInfo().getCmseNSCall(); }
   CallingConv getCallConv() const { return getExtInfo().getCC(); }
-  ExtInfo getExtInfo() const { return ExtInfo(FunctionTypeBits.ExtInfo); }
+  ExtInfo getExtInfo() const {
+    CallingConv cc = static_cast<CallingConv>(FunctionTypeBits.ExtInfo &
+                                              ExtInfo::CallConvMask);
+    if (cc == ExtInfo::ExtCallConv)
+      cc = getExtendedCallingConv();
+    return ExtInfo(FunctionTypeBits.ExtInfo, cc);
+  }
 
   static_assert((~Qualifiers::FastMask & Qualifiers::CVRMask) == 0,
                 "Const, volatile and restrict are assumed to be a subset of "
@@ -3843,17 +3875,42 @@ public:
   }
 };
 
+class ExtendedCallingConvExtractor;
+
 /// Represents a K&R-style 'int foo()' function, which has
 /// no information available about its arguments.
-class FunctionNoProtoType : public FunctionType, public llvm::FoldingSetNode {
+/// FunctionProtoType has the single optional trailing object.
+/// For more information about the trailing objects see
+/// the first comment inside FunctionNoProtoType.
+class FunctionNoProtoType final
+    : public FunctionType,
+      public llvm::FoldingSetNode,
+      private llvm::TrailingObjects<FunctionNoProtoType, CallingConv> {
   friend class ASTContext; // ASTContext creates these.
+  friend TrailingObjects;
+  friend ExtendedCallingConvExtractor;
+  using FunctionType::isExtendedCallingConv;
+
+  // FunctionNoProtoType is followed by the single optional trailing
+  // object:
+  //
+  // * If the function has an extended calling convention, the CallingConv.
 
   FunctionNoProtoType(QualType Result, QualType Canonical, ExtInfo Info)
       : FunctionType(FunctionNoProto, Result, Canonical,
                      Result->getDependence() &
                          ~(TypeDependence::DependentInstantiation |
                            TypeDependence::UnexpandedPack),
-                     Info) {}
+                     Info) {
+    // Fill in the trailing dynamic calling convention field if present.
+    if (isExtendedCallingConv(Info.getCC()))
+      *getTrailingObjects<CallingConv>() = Info.getCC();
+  }
+
+private:
+  unsigned numTrailingObjects(OverloadToken<CallingConv>) const {
+    return static_cast<unsigned>(hasExtendedCallingConv());
+  }
 
 public:
   // No additional state past what FunctionType provides.
@@ -3887,11 +3944,13 @@ class FunctionProtoType final
     : public FunctionType,
       public llvm::FoldingSetNode,
       private llvm::TrailingObjects<
-          FunctionProtoType, QualType, SourceLocation,
+          FunctionProtoType, QualType, CallingConv, SourceLocation,
           FunctionType::FunctionTypeExtraBitfields, FunctionType::ExceptionType,
           Expr *, FunctionDecl *, FunctionType::ExtParameterInfo, Qualifiers> {
   friend class ASTContext; // ASTContext creates these.
   friend TrailingObjects;
+  friend ExtendedCallingConvExtractor;
+  using FunctionType::isExtendedCallingConv;
 
   // FunctionProtoType is followed by several trailing objects, some of
   // which optional. They are in order:
@@ -3899,6 +3958,9 @@ class FunctionProtoType final
   // * An array of getNumParams() QualType holding the parameter types.
   //   Always present. Note that for the vast majority of FunctionProtoType,
   //   these will be the only trailing objects.
+  //
+  // * Optionally if the function has an extended calling convention,
+  //   the CallingConv.
   //
   // * Optionally if the function is variadic, the SourceLocation of the
   //   ellipsis.
@@ -3991,6 +4053,10 @@ public:
 private:
   unsigned numTrailingObjects(OverloadToken<QualType>) const {
     return getNumParams();
+  }
+
+  unsigned numTrailingObjects(OverloadToken<CallingConv>) const {
+    return static_cast<unsigned>(hasExtendedCallingConv());
   }
 
   unsigned numTrailingObjects(OverloadToken<SourceLocation>) const {

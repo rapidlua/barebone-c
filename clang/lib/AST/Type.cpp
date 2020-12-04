@@ -29,6 +29,7 @@
 #include "clang/AST/TemplateName.h"
 #include "clang/AST/TypeVisitor.h"
 #include "clang/Basic/AddressSpaces.h"
+#include "clang/Basic/DynamicCallingConv.h"
 #include "clang/Basic/ExceptionSpecificationType.h"
 #include "clang/Basic/IdentifierTable.h"
 #include "clang/Basic/LLVM.h"
@@ -3086,7 +3087,31 @@ StringRef FunctionType::getNameForCallConv(CallingConv CC) {
   case CC_PreserveAll: return "preserve_all";
   }
 
+  if (auto *DCC = DynamicCallingConv::get(CC))
+    return DCC->getName();
   llvm_unreachable("Invalid calling convention.");
+}
+
+namespace clang {
+class ExtendedCallingConvExtractor {
+public:
+  static CallingConv getCC(const FunctionType *F) {
+    if (auto *FP = dyn_cast<FunctionProtoType>(F)) {
+      return *FP->getTrailingObjects<CallingConv>();
+    }
+    if (auto *FNP = dyn_cast<FunctionNoProtoType>(F)) {
+      return *FNP->getTrailingObjects<CallingConv>();
+    }
+    llvm_unreachable("bad type kind!");
+    return CC_C;
+  }
+};
+constexpr CallingConv FunctionType::ExtInfo::ExtCallConv;
+}
+
+CallingConv FunctionType::getExtendedCallingConv() const {
+  assert(hasExtendedCallingConv());
+  return ExtendedCallingConvExtractor::getCC(this);
 }
 
 FunctionProtoType::FunctionProtoType(QualType result, ArrayRef<QualType> params,
@@ -3116,6 +3141,10 @@ FunctionProtoType::FunctionProtoType(QualType result, ArrayRef<QualType> params,
                   ~TypeDependence::VariablyModified);
     argSlot[i] = params[i];
   }
+
+  // Fill in the trailing extended calling convention field if present.
+  if (isExtendedCallingConv(epi.ExtInfo.getCC()))
+    *getTrailingObjects<CallingConv>() = epi.ExtInfo.getCC();
 
   // Fill in the exception type array if present.
   if (getExceptionSpecType() == EST_Dynamic) {

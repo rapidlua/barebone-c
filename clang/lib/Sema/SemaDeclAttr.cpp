@@ -22,6 +22,7 @@
 #include "clang/AST/Mangle.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Basic/CharInfo.h"
+#include "clang/Basic/DynamicCallingConv.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Basic/TargetBuiltins.h"
 #include "clang/Basic/TargetInfo.h"
@@ -4700,7 +4701,8 @@ bool Sema::CheckCallingConvAttr(const ParsedAttr &Attrs, CallingConv &CC,
   }
   }
 
-  Attrs.setProcessingCache((unsigned) CC);
+  if (!DynamicCallingConv::get(CC))
+    Attrs.setProcessingCache((unsigned) CC);
   return false;
 }
 
