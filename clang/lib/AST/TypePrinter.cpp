@@ -24,6 +24,7 @@
 #include "clang/AST/TemplateName.h"
 #include "clang/AST/Type.h"
 #include "clang/Basic/AddressSpaces.h"
+#include "clang/Basic/DynamicCallingConv.h"
 #include "clang/Basic/ExceptionSpecificationType.h"
 #include "clang/Basic/IdentifierTable.h"
 #include "clang/Basic/LLVM.h"
@@ -981,6 +982,8 @@ void TypePrinter::printFunctionAfter(const FunctionType::ExtInfo &Info,
       OS << " __attribute__((preserve_all))";
       break;
     }
+    if (auto *DCC = DynamicCallingConv::get(Info.getCC()))
+      DCC->printFunctionAfter(OS);
   }
 
   if (Info.getNoReturn())

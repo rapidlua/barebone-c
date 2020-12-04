@@ -47,6 +47,7 @@ add_clang_library(clangBasic
   Diagnostic.cpp
   DiagnosticIDs.cpp
   DiagnosticOptions.cpp
+  DynamicCallingConv.cpp
   ExpressionTraits.cpp
   FileEntry.cpp
   FileManager.cpp
