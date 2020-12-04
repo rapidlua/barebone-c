@@ -25,6 +25,7 @@
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/DeclObjC.h"
 #include "clang/Basic/CodeGenOptions.h"
+#include "clang/Basic/DynamicCallingConv.h"
 #include "clang/Basic/TargetBuiltins.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/CodeGen/CGFunctionInfo.h"
@@ -45,7 +46,12 @@ using namespace CodeGen;
 
 unsigned CodeGenTypes::ClangCallConvToLLVMCallConv(CallingConv CC) {
   switch (CC) {
-  default: return llvm::CallingConv::C;
+  default:
+    if (auto *DCC = DynamicCallingConv::get(CC)) {
+      if (isa<BareboneCallingConv>(DCC))
+        return llvm::CallingConv::Barebone;
+    }
+    return llvm::CallingConv::C;
   case CC_X86StdCall: return llvm::CallingConv::X86_StdCall;
   case CC_X86FastCall: return llvm::CallingConv::X86_FastCall;
   case CC_X86RegCall: return llvm::CallingConv::X86_RegCall;
@@ -2072,6 +2078,27 @@ void CodeGenModule::ConstructAttributeList(
     // CPU/feature overrides.  addDefaultFunctionDefinitionAttributes
     // handles these separately to set them based on the global defaults.
     GetCPUAndFeaturesAttributes(CalleeInfo.getCalleeDecl(), FuncAttrs);
+  }
+
+  // Barebone calling convention
+  if (CallingConv == llvm::CallingConv::Barebone) {
+    auto *BCC = dyn_cast_or_null<BareboneCallingConv>(
+      DynamicCallingConv::get(FI.getASTCallingConvention()));
+    assert(BCC);
+    if (!BCC->getHWReg().empty())
+      FuncAttrs.addAttribute("hwreg", BCC->getHWReg());
+    if (BCC->getLocalAreaSize()) {
+      SmallVector<char, 32> Buf;
+      llvm::raw_svector_ostream(Buf) << BCC->getLocalAreaSize();
+      FuncAttrs.addAttribute("local-area-size",
+                             StringRef(Buf.begin(), Buf.size()));
+    }
+    if (!AttrOnCallSite) {
+      if (!BCC->getNoClobberHWReg().empty())
+        FuncAttrs.addAttribute("no-clobber-hwreg", BCC->getNoClobberHWReg());
+      FuncAttrs.addAttribute("frame-pointer", "none");
+      // UWTable removed elsewhere
+    }
   }
 
   // Collect attributes from arguments and return values.

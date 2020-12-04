@@ -14,6 +14,7 @@
 #define LLVM_CLANG_LIB_BASIC_TARGETS_X86_H
 
 #include "OSTargets.h"
+#include "clang/Basic/DynamicCallingConv.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Basic/TargetOptions.h"
 #include "llvm/ADT/Triple.h"
@@ -322,6 +323,10 @@ public:
     case CC_OpenCLKernel:
       return CCCR_OK;
     default:
+      if (auto *DCC = DynamicCallingConv::get(CC)) {
+        if (isa<BareboneCallingConv>(DCC))
+          return CCCR_OK;
+      }
       return CCCR_Warning;
     }
   }
@@ -686,6 +691,10 @@ public:
     case CC_OpenCLKernel:
       return CCCR_OK;
     default:
+      if (auto *DCC = DynamicCallingConv::get(CC)) {
+        if (isa<BareboneCallingConv>(DCC))
+          return CCCR_OK;
+      }
       return CCCR_Warning;
     }
   }
@@ -762,6 +771,10 @@ public:
     case CC_OpenCLKernel:
       return CCCR_OK;
     default:
+      if (auto *DCC = DynamicCallingConv::get(CC)) {
+        if (isa<BareboneCallingConv>(DCC))
+          return CCCR_OK;
+      }
       return CCCR_Warning;
     }
   }

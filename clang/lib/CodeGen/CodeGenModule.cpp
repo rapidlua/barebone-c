@@ -1554,7 +1554,7 @@ void CodeGenModule::SetLLVMFunctionAttributesForDefinition(const Decl *D,
                                                            llvm::Function *F) {
   llvm::AttrBuilder B;
 
-  if (CodeGenOpts.UnwindTables)
+  if (CodeGenOpts.UnwindTables && F->getCallingConv() != llvm::CallingConv::Barebone)
     B.addAttribute(llvm::Attribute::UWTable);
 
   if (CodeGenOpts.StackClashProtector)
