@@ -243,6 +243,8 @@ class ASTContext : public RefCountedBase<ASTContext> {
   mutable llvm::FoldingSet<NestedNameSpecifier> NestedNameSpecifiers;
   mutable NestedNameSpecifier *GlobalNestedNameSpecifier = nullptr;
 
+  mutable llvm::FoldingSet<BareboneCallingConv> BareboneCallingConvs;
+
   /// A cache mapping from RecordDecls to ASTRecordLayouts.
   ///
   /// This is lazily created.  This is intentionally not serialized.
@@ -1371,6 +1373,10 @@ private:
                                    bool OnlyWantCanonical) const;
 
 public:
+  CallingConv getBareboneCallingConv(llvm::StringRef HWReg,
+                                     llvm::StringRef NoClobberHWReg,
+                                     unsigned LocalAreaSize) const;
+
   /// Return the unique reference to the type for the specified type
   /// declaration.
   QualType getTypeDeclType(const TypeDecl *Decl,

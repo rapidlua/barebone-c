@@ -806,14 +806,16 @@ CGFunctionInfo *CGFunctionInfo::create(unsigned llvmCC,
   assert(!required.allowsOptionalArgs() ||
          required.getNumRequiredArgs() <= argTypes.size());
 
+  const auto ASTCallConv = info.getCC();
+  const bool needASTCCExt = ASTCallConv >= ASTCallingConventionExt;
   void *buffer =
-    operator new(totalSizeToAlloc<ArgInfo,             ExtParameterInfo>(
-                                  argTypes.size() + 1, paramInfos.size()));
+    operator new(totalSizeToAlloc<CallingConv,    ArgInfo,             ExtParameterInfo>(
+                                  needASTCCExt,   argTypes.size() + 1, paramInfos.size()));
 
   CGFunctionInfo *FI = new(buffer) CGFunctionInfo();
   FI->CallingConvention = llvmCC;
   FI->EffectiveCallingConvention = llvmCC;
-  FI->ASTCallingConvention = info.getCC();
+  FI->ASTCallingConvention = needASTCCExt ? ASTCallingConventionExt : ASTCallConv;
   FI->InstanceMethod = instanceMethod;
   FI->ChainCall = chainCall;
   FI->CmseNSCall = info.getCmseNSCall();
@@ -828,6 +830,8 @@ CGFunctionInfo *CGFunctionInfo::create(unsigned llvmCC,
   FI->ArgStructAlign = 0;
   FI->NumArgs = argTypes.size();
   FI->HasExtParameterInfos = !paramInfos.empty();
+  if (needASTCCExt)
+    *FI->getTrailingObjects<CallingConv>() = ASTCallConv;
   FI->getArgsBuffer()[0].type = resultType;
   for (unsigned i = 0, e = argTypes.size(); i != e; ++i)
     FI->getArgsBuffer()[i + 1].type = argTypes[i];

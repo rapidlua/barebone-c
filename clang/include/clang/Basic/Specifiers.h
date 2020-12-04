@@ -267,7 +267,7 @@ namespace clang {
   };
 
   /// CallingConv - Specifies the calling convention that a function uses.
-  enum CallingConv {
+  enum CallingConv: uintptr_t {
     CC_C,           // __attribute__((cdecl))
     CC_X86StdCall,  // __attribute__((stdcall))
     CC_X86FastCall, // __attribute__((fastcall))
@@ -287,6 +287,9 @@ namespace clang {
     CC_PreserveAll,  // __attribute__((preserve_all))
     CC_AArch64VectorCall, // __attribute__((aarch64_vector_pcs))
   };
+
+  class DynamicCallingConv;
+  class BareboneCallingConv;
 
   /// Checks whether the given calling convention supports variadic
   /// calls. Unprototyped calls also use the variadic call rules.

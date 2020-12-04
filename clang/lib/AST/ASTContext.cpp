@@ -50,6 +50,7 @@
 #include "clang/Basic/AddressSpaces.h"
 #include "clang/Basic/Builtins.h"
 #include "clang/Basic/CommentOptions.h"
+#include "clang/Basic/DynamicCallingConv.h"
 #include "clang/Basic/ExceptionSpecificationType.h"
 #include "clang/Basic/FixedPoint.h"
 #include "clang/Basic/IdentifierTable.h"
@@ -1006,6 +1007,9 @@ ASTContext::~ASTContext() {
 
   for (APValue *Value : APValueCleanups)
     Value->~APValue();
+
+  for (auto &BCC: BareboneCallingConvs)
+    BCC.resetNameCache();
 }
 
 void ASTContext::setTraversalScope(const std::vector<Decl *> &TopLevelDecls) {
@@ -3990,8 +3994,11 @@ ASTContext::getFunctionNoProtoType(QualType ResultTy,
     assert(!NewIP && "Shouldn't be in the map!"); (void)NewIP;
   }
 
-  auto *New = new (*this, TypeAlignment)
-    FunctionNoProtoType(ResultTy, Canonical, Info);
+  size_t Size = FunctionNoProtoType::totalSizeToAlloc<CallingConv>(
+    static_cast<unsigned>(FunctionNoProtoType::isExtendedCallingConv(Info.getCC())));
+
+  auto *New = (FunctionNoProtoType *)Allocate(Size, TypeAlignment);
+  new (New) FunctionNoProtoType(ResultTy, Canonical, Info);
   Types.push_back(New);
   FunctionNoProtoTypes.InsertNode(New, InsertPos);
   return QualType(New, 0);
@@ -4169,10 +4176,12 @@ QualType ASTContext::getFunctionTypeInternal(
   auto ESH = FunctionProtoType::getExceptionSpecSize(
       EPI.ExceptionSpec.Type, EPI.ExceptionSpec.Exceptions.size());
   size_t Size = FunctionProtoType::totalSizeToAlloc<
-      QualType, SourceLocation, FunctionType::FunctionTypeExtraBitfields,
+      QualType, CallingConv, SourceLocation, FunctionType::FunctionTypeExtraBitfields,
       FunctionType::ExceptionType, Expr *, FunctionDecl *,
       FunctionProtoType::ExtParameterInfo, Qualifiers>(
-      NumArgs, EPI.Variadic,
+      NumArgs,
+      static_cast<unsigned>(FunctionProtoType::isExtendedCallingConv(EPI.ExtInfo.getCC())),
+      EPI.Variadic,
       FunctionProtoType::hasExtraBitfields(EPI.ExceptionSpec.Type),
       ESH.NumExceptionType, ESH.NumExprPtr, ESH.NumFunctionDeclPtr,
       EPI.ExtParameterInfos ? NumArgs : 0,
@@ -4185,6 +4194,20 @@ QualType ASTContext::getFunctionTypeInternal(
   if (!Unique)
     FunctionProtoTypes.InsertNode(FTP, InsertPos);
   return QualType(FTP, 0);
+}
+
+CallingConv ASTContext::getBareboneCallingConv(StringRef HWReg,
+                                               StringRef NoClobberHWReg,
+                                               unsigned LocalAreaSize) const {
+  llvm::FoldingSetNodeID ID;
+  BareboneCallingConv::Profile(ID, HWReg, NoClobberHWReg, LocalAreaSize);
+  void *InsertPos = nullptr;
+  if (BareboneCallingConv *BCC =
+        BareboneCallingConvs.FindNodeOrInsertPos(ID, InsertPos))
+    return BCC->asCC();
+  auto *BCC = new (*this) BareboneCallingConv(HWReg, NoClobberHWReg, LocalAreaSize);
+  BareboneCallingConvs.InsertNode(BCC, InsertPos);
+  return BCC->asCC();
 }
 
 QualType ASTContext::getPipeType(QualType T, bool ReadOnly) const {

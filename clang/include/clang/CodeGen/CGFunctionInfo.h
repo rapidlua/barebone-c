@@ -486,7 +486,7 @@ struct CGFunctionInfoArgInfo {
 /// function definition.
 class CGFunctionInfo final
     : public llvm::FoldingSetNode,
-      private llvm::TrailingObjects<CGFunctionInfo, CGFunctionInfoArgInfo,
+      private llvm::TrailingObjects<CGFunctionInfo, CallingConv, CGFunctionInfoArgInfo,
                                     FunctionProtoType::ExtParameterInfo> {
   typedef CGFunctionInfoArgInfo ArgInfo;
   typedef FunctionProtoType::ExtParameterInfo ExtParameterInfo;
@@ -501,6 +501,8 @@ class CGFunctionInfo final
 
   /// The clang::CallingConv that this was originally created with.
   unsigned ASTCallingConvention : 6;
+
+  static constexpr unsigned ASTCallingConventionExt = 0x3f;
 
   /// Whether this is an instance method.
   unsigned InstanceMethod : 1;
@@ -567,6 +569,9 @@ public:
   // Friending class TrailingObjects is apparently not good enough for MSVC,
   // so these have to be public.
   friend class TrailingObjects;
+  size_t numTrailingObjects(OverloadToken<CallingConv>) const {
+    return ASTCallingConvention == ASTCallingConventionExt;
+  }
   size_t numTrailingObjects(OverloadToken<ArgInfo>) const {
     return NumArgs + 1;
   }
@@ -618,7 +623,9 @@ public:
   /// getASTCallingConvention() - Return the AST-specified calling
   /// convention.
   CallingConv getASTCallingConvention() const {
-    return CallingConv(ASTCallingConvention);
+    if (ASTCallingConvention != ASTCallingConventionExt)
+      return CallingConv(ASTCallingConvention);
+    return *getTrailingObjects<CallingConv>();
   }
 
   /// getCallingConvention - Return the user specified calling
@@ -673,7 +680,7 @@ public:
   }
 
   void Profile(llvm::FoldingSetNodeID &ID) {
-    ID.AddInteger(getASTCallingConvention());
+    ID.AddPointer(reinterpret_cast<void *>(getASTCallingConvention()));
     ID.AddBoolean(InstanceMethod);
     ID.AddBoolean(ChainCall);
     ID.AddBoolean(NoReturn);
@@ -701,7 +708,7 @@ public:
                       RequiredArgs required,
                       CanQualType resultType,
                       ArrayRef<CanQualType> argTypes) {
-    ID.AddInteger(info.getCC());
+    ID.AddPointer(reinterpret_cast<void *>(info.getCC()));
     ID.AddBoolean(InstanceMethod);
     ID.AddBoolean(ChainCall);
     ID.AddBoolean(info.getNoReturn());
