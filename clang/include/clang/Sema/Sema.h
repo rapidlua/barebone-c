@@ -12522,7 +12522,9 @@ public:
     ForThisTarget = 0,
     VariadicFunction,
     ConstructorDestructor,
-    BuiltinFunction
+    BuiltinFunction,
+    ValueReturningFunction,
+    FunctionWithNonScalarParameter
   };
   /// Creates a DeviceDiagBuilder that emits the diagnostic if the current
   /// context is "used as device code".

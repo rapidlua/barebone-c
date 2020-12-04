@@ -3290,6 +3290,8 @@ def warn_cconv_unsupported : Warning<
   "|on variadic function"
   "|on constructor/destructor"
   "|on builtin function"
+  "|on value-returning function"
+  "|on function with non-scalar parameter"
   "}1">,
   InGroup<IgnoredAttributes>;
 def error_cconv_unsupported : Error<warn_cconv_unsupported.Text>;

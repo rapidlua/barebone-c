@@ -23,6 +23,7 @@
 #include "clang/AST/TypeLocVisitor.h"
 #include "clang/Basic/PartialDiagnostic.h"
 #include "clang/Basic/TargetInfo.h"
+#include "clang/Basic/DynamicCallingConv.h"
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Sema/DeclSpec.h"
 #include "clang/Sema/DelayedDiagnostic.h"
@@ -7488,6 +7489,29 @@ static bool handleFunctionTypeAttr(TypeProcessingState &state, ParsedAttr &attr,
         << "regparm" << FunctionType::getNameForCallConv(CC_X86FastCall);
     attr.setInvalid();
     return true;
+  }
+
+  // Diagnose barebone with unsupported features
+  if (auto *DCC = DynamicCallingConv::get(CC)) {
+    if (isa<BareboneCallingConv>(DCC)) {
+      auto *FnProto = dyn_cast<FunctionProtoType>(fn);
+      if (!FnProto) {
+        attr.setInvalid();
+        return S.Diag(attr.getLoc(), diag::err_cconv_knr) << "barebone";
+      }
+      using Reason = Sema::CallingConventionIgnoredReason;
+      auto Reject = [&](Reason Reason) {
+        attr.setInvalid();
+        return S.Diag(attr.getLoc(), diag::error_cconv_unsupported)
+               << "barebone" << (int)Reason;
+      };
+      if (!fn->getReturnType()->isVoidType())
+        return Reject(Reason::ValueReturningFunction);
+      for (auto &T: FnProto->getParamTypes()) {
+        if (!T->isScalarType())
+          return Reject(Reason::FunctionWithNonScalarParameter);
+      }
+    }
   }
 
   // Modify the CC from the wrapped function type, wrap it all back, and then
