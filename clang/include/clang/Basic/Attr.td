@@ -843,6 +843,12 @@ static llvm::StringRef canonicalizePlatformName(llvm::StringRef Platform) {
   let Documentation = [AvailabilityDocs];
 }
 
+def Barebone : DeclOrTypeAttr {
+  let Spellings = [Clang<"barebone">];
+  let HasCustomParsing = 1;
+  let Documentation = [Undocumented];
+}
+
 def ExternalSourceSymbol : InheritableAttr {
   let Spellings = [Clang<"external_source_symbol">];
   let Args = [StringArgument<"language", 1>,

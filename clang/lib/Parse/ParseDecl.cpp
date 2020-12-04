@@ -444,6 +444,10 @@ void Parser::ParseGNUAttributeArgs(IdentifierInfo *AttrName,
     ParseAvailabilityAttribute(*AttrName, AttrNameLoc, Attrs, EndLoc, ScopeName,
                                ScopeLoc, Syntax);
     return;
+  } else if (AttrKind == ParsedAttr::AT_Barebone) {
+    ParseBareboneAttribute(*AttrName, AttrNameLoc, Attrs, EndLoc, ScopeName,
+                           ScopeLoc, Syntax);
+    return;
   } else if (AttrKind == ParsedAttr::AT_ExternalSourceSymbol) {
     ParseExternalSourceSymbolAttribute(*AttrName, AttrNameLoc, Attrs, EndLoc,
                                        ScopeName, ScopeLoc, Syntax);
@@ -501,6 +505,10 @@ unsigned Parser::ParseClangAttributeArgs(
   case ParsedAttr::AT_Availability:
     ParseAvailabilityAttribute(*AttrName, AttrNameLoc, Attrs, EndLoc, ScopeName,
                                ScopeLoc, Syntax);
+    break;
+  case ParsedAttr::AT_Barebone:
+    ParseBareboneAttribute(*AttrName, AttrNameLoc, Attrs, EndLoc, ScopeName,
+                           ScopeLoc, Syntax);
     break;
   case ParsedAttr::AT_ObjCBridgeRelated:
     ParseObjCBridgeRelatedAttribute(*AttrName, AttrNameLoc, Attrs, EndLoc,
@@ -1208,6 +1216,85 @@ void Parser::ParseAvailabilityAttribute(IdentifierInfo &Availability,
                Changes[Obsoleted],
                UnavailableLoc, MessageExpr.get(),
                Syntax, StrictLoc, ReplacementExpr.get());
+}
+
+void Parser::ParseBareboneAttribute(IdentifierInfo &Barebone,
+                                    SourceLocation BareboneLoc,
+                                    ParsedAttributes &Attrs,
+                                    SourceLocation *EndLoc,
+                                    IdentifierInfo *ScopeName,
+                                    SourceLocation ScopeLoc,
+                                    ParsedAttr::Syntax Syntax) {
+  // Convert keyword arguments into positional ones.
+  enum { Hwreg, NoClobberHwreg, LocalAreaSize, Unknown };
+  ArgsUnion Args[Unknown];
+
+  // Opening '('.
+  BalancedDelimiterTracker T(*this, tok::l_paren);
+  if (T.consumeOpen()) {
+    Diag(Tok, diag::err_expected) << tok::l_paren;
+    return;
+  }
+
+  if (!Ident_hwreg) {
+    Ident_hwreg = PP.getIdentifierInfo("hwreg");
+    Ident_no_clobber_hwreg = PP.getIdentifierInfo("no_clobber_hwreg");
+    Ident_local_area_size = PP.getIdentifierInfo("local_area_size");
+  }
+
+  do {
+    if (Tok.isNot(tok::identifier)) {
+      Diag(Tok, diag::err_barebone_expected_kw);
+      SkipUntil(tok::r_paren, StopAtSemi);
+      return;
+    }
+    IdentifierInfo *Keyword = Tok.getIdentifierInfo();
+    SourceLocation KeywordLoc = ConsumeToken();
+
+    if (Tok.isNot(tok::equal)) {
+      Diag(Tok, diag::err_expected_after) << Keyword << tok::equal;
+      SkipUntil(tok::r_paren, StopAtSemi);
+      return;
+    }
+    ConsumeToken();
+
+    EnterExpressionEvaluationContext ConstantEvaluated(
+      Actions,
+      Sema::ExpressionEvaluationContext::ConstantEvaluated);
+
+    ExprResult ArgExpr(
+      Actions.CorrectDelayedTyposInExpr(ParseAssignmentExpression()));
+    if (ArgExpr.isInvalid()) {
+      SkipUntil(tok::r_paren, StopAtSemi);
+      return;
+    }
+
+    auto Idx = Unknown;
+    if (Keyword == Ident_hwreg)
+      Idx = Hwreg;
+    else if (Keyword == Ident_no_clobber_hwreg)
+      Idx = NoClobberHwreg;
+    else if (Keyword == Ident_local_area_size)
+      Idx = LocalAreaSize;
+
+    if (Idx < Unknown) {
+      if (Args[Idx])
+        Diag(KeywordLoc, diag::err_barebone_redundant_argument) << Keyword;
+      Args[Idx] = ArgExpr.get();
+    } else {
+      Diag(KeywordLoc, diag::err_barebone_unknown_argument) << Keyword;
+    }
+
+  } while (TryConsumeToken(tok::comma));
+
+  // Closing ')'.
+  if (T.consumeClose())
+    return;
+  if (EndLoc)
+    *EndLoc = T.getCloseLocation();
+
+  Attrs.addNew(&Barebone, SourceRange(BareboneLoc, T.getCloseLocation()),
+               ScopeName, ScopeLoc, Args, llvm::array_lengthof(Args), Syntax);
 }
 
 /// Parse the contents of the "external_source_symbol" attribute.
