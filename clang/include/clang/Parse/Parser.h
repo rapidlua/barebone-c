@@ -151,6 +151,10 @@ class Parser : public CodeCompletionHandler {
   /// Identifier for "replacement".
   IdentifierInfo *Ident_replacement;
 
+  IdentifierInfo *Ident_hwreg;
+  IdentifierInfo *Ident_no_clobber_hwreg;
+  IdentifierInfo *Ident_local_area_size;
+
   /// Identifiers used by the 'external_source_symbol' attribute.
   IdentifierInfo *Ident_language, *Ident_defined_in,
       *Ident_generated_declaration;
@@ -2763,6 +2767,14 @@ private:
 
   Optional<AvailabilitySpec> ParseAvailabilitySpec();
   ExprResult ParseAvailabilityCheckExpr(SourceLocation StartLoc);
+
+  void ParseBareboneAttribute(IdentifierInfo &Availability,
+                              SourceLocation AvailabilityLoc,
+                              ParsedAttributes &attrs,
+                              SourceLocation *endLoc,
+                              IdentifierInfo *ScopeName,
+                              SourceLocation ScopeLoc,
+                              ParsedAttr::Syntax Syntax);
 
   void ParseExternalSourceSymbolAttribute(IdentifierInfo &ExternalSourceSymbol,
                                           SourceLocation Loc,

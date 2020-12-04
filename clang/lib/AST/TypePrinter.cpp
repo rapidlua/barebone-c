@@ -1635,6 +1635,11 @@ void TypePrinter::printAttributedAfter(const AttributedType *T,
   case attr::ArmMveStrictPolymorphism:
     OS << "__clang_arm_mve_strict_polymorphism";
     break;
+  case attr::Barebone: {
+    auto *FT = T->getEquivalentType()->castAs<FunctionType>();
+    DynamicCallingConv::get(FT->getCallConv())->printName(OS);
+    break;
+  }
   }
   OS << "))";
 }

@@ -4560,7 +4560,18 @@ bool Sema::CheckCallingConvAttr(const ParsedAttr &Attrs, CallingConv &CC,
     return false;
   }
 
-  unsigned ReqArgs = Attrs.getKind() == ParsedAttr::AT_Pcs ? 1 : 0;
+  unsigned ReqArgs;
+  switch (Attrs.getKind()) {
+  default:
+    ReqArgs = 0;
+    break;
+  case ParsedAttr::AT_Pcs:
+    ReqArgs = 1;
+    break;
+  case ParsedAttr::AT_Barebone:
+    ReqArgs = 3;
+    break;
+  }
   if (!checkAttributeNumArgs(*this, Attrs, ReqArgs)) {
     Attrs.setInvalid();
     return true;
@@ -4630,6 +4641,22 @@ bool Sema::CheckCallingConvAttr(const ParsedAttr &Attrs, CallingConv &CC,
   case ParsedAttr::AT_PreserveAll:
     CC = CC_PreserveAll;
     break;
+  case ParsedAttr::AT_Barebone: {
+    StringRef HWReg, NoClobberHWReg;
+    uint32_t LocalAreaSize = 0;
+    if ((Attrs.getArg(0) &&
+         !checkStringLiteralArgumentAttr(Attrs, 0, HWReg)) ||
+        (Attrs.getArg(1) &&
+         !checkStringLiteralArgumentAttr(Attrs, 1, NoClobberHWReg)) ||
+        (Attrs.getArg(2) &&
+         !checkUInt32Argument(*this, Attrs, Attrs.getArgAsExpr(2),
+                              LocalAreaSize, UINT_MAX, /*Unsigned=*/true))) {
+      Attrs.setInvalid();
+      return true;
+    }
+    CC = Context.getBareboneCallingConv(HWReg, NoClobberHWReg, LocalAreaSize);
+    break;
+  }
   default: llvm_unreachable("unexpected attribute kind");
   }
 

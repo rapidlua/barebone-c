@@ -997,6 +997,15 @@ def err_availability_query_repeated_platform: Error<
 def err_availability_query_repeated_star : Error<
   "'*' query has already been specified">;
 
+// Barebone
+def err_barebone_expected_kw : Error<
+  "expected 'hwreg', 'no_clobber_hwreg', or 'local_area_size'">;
+def err_barebone_unknown_argument : Error<
+  "%0 is not recognized; use 'hwreg', 'no_clobber_hwreg', or "
+  "'local_area_size'">;
+def err_barebone_redundant_argument: Error<
+  "redundant %0 argument; only the last one will be used">;
+
 // External source symbol attribute
 def err_external_source_symbol_expected_keyword : Error<
   "expected 'language', 'defined_in', or 'generated_declaration'">;

@@ -3527,6 +3527,7 @@ bool AttributedType::isCallingConv() const {
   case attr::IntelOclBicc:
   case attr::PreserveMost:
   case attr::PreserveAll:
+  case attr::Barebone:
     return true;
   }
   llvm_unreachable("invalid attr kind");
